@@ -29,7 +29,7 @@ export default function KiaminaAccountingWebsite() {
   const [subscriptionEmail, setSubscriptionEmail] = useState("");
   const [subscriptionStatus, setSubscriptionStatus] = useState("idle");
   const [subscriptionMessage, setSubscriptionMessage] = useState("");
-  const [selectedInsight, setSelectedInsight] = useState(null);
+  const [selectedInsight, setSelectedInsight] = useState<any>(null);
 
   const handleSubscription = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
