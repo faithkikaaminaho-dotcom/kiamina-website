@@ -556,7 +556,15 @@ export default function KiaminaAccountingWebsite() {
     </button>
   );
 
-  const SectionHeading = ({ eyebrow, title, body }) => (
+  const SectionHeading = ({
+  eyebrow,
+  title,
+  body,
+}: {
+  eyebrow: string;
+  title: string;
+  body?: string;
+}) => (
     <div className="max-w-3xl">
       <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
         {eyebrow}
