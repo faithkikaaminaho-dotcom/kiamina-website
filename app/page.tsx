@@ -531,7 +531,7 @@ export default function KiaminaAccountingWebsite() {
     "Ongoing Reporting & Advisory": LineChart,
   };
 
-  const openPage = (page) => {
+  const openPage = (page: string) => {
     setActivePage(page);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
