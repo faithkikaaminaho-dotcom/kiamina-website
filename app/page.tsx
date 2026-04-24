@@ -1409,7 +1409,7 @@ export default function KiaminaAccountingWebsite() {
                   </div>
 
                   <div className="space-y-10">
-                    {insight.sections.map((section, index) => (
+                    {insight.sections.map((section: any, index: number) => (
                       <section key={section.heading} className="border-b border-slate-100 pb-10 last:border-b-0 last:pb-0">
                         <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[#6491DE]">Section {index + 1}</div>
                         <h3 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">{section.heading}</h3>
