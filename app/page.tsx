@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Mail,
   Phone,
@@ -31,7 +31,7 @@ export default function KiaminaAccountingWebsite() {
   const [subscriptionMessage, setSubscriptionMessage] = useState("");
   const [selectedInsight, setSelectedInsight] = useState(null);
 
-  const handleSubscription = async (e) => {
+  const handleSubscription = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     if (!subscriptionEmail.trim()) {
