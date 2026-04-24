@@ -15,7 +15,10 @@ const geistMono = Geist_Mono({
 export const metadata = {
   title: "Kiamina Accounting Services",
   description:
-    "Strategic accounting, reporting, payroll, tax compliance, and CFO advisory services for businesses and nonprofits.",
+    "Strategic accounting, reporting, payroll, tax compliance, and CFO advisory services.",
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export default function RootLayout({
