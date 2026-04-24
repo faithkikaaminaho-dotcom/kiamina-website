@@ -1416,7 +1416,7 @@ export default function KiaminaAccountingWebsite() {
                         {section.body ? <p className="mt-4 text-base leading-8 text-slate-600">{section.body}</p> : null}
                         {section.bullets ? (
                           <ul className="mt-5 space-y-4 text-base leading-8 text-slate-600">
-                            {section.bullets.map((bullet) => (
+                            {section.bullets.map((bullet: string) => (
                               <li key={bullet} className="flex gap-4">
                                 <span className="mt-3 h-1.5 w-1.5 rounded-full bg-[#6491DE]" />
                                 <span>{bullet}</span>
