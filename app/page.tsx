@@ -644,7 +644,13 @@ export default function KiaminaAccountingWebsite() {
     return null;
   };
 
-  const SocialBadge = ({ href, name }) => (
+  const SocialBadge = ({
+  href,
+  name,
+}: {
+  href: string;
+  name: string;
+}) => (
     <a
       href={href}
       target="_blank"
