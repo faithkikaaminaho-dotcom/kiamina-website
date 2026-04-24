@@ -497,7 +497,7 @@ export default function KiaminaAccountingWebsite() {
     },
   ];
 
-  const serviceIcons = {
+  const serviceIcons: Record<string, React.ComponentType<{ className?: string }>> = {
     bookkeeping: BookOpen,
     "payroll-processing": Wallet,
     "financial-reporting": FileText,
@@ -508,7 +508,7 @@ export default function KiaminaAccountingWebsite() {
     "tax-compliance": ShieldCheck,
   };
 
-  const industryIcons = {
+  const industryIcons: Record<string, React.ComponentType<{ className?: string }>> = {
     "Oil & Gas": Building2,
     "Real Estate": Building2,
     ICT: Laptop,
@@ -517,14 +517,14 @@ export default function KiaminaAccountingWebsite() {
     "Other Service Organizations": Briefcase,
   };
 
-  const differentiatorIcons = {
+  const differentiatorIcons: Record<string, React.ComponentType<{ className?: string }>> = {
     "Strategic, not clerical": Search,
     "Multi-country capability": Globe2,
     "Precision by design": ShieldCheck,
     "Sector-aware delivery": Briefcase,
   };
 
-  const stepIcons = {
+  const stepIcons: Record<string, React.ComponentType<{ className?: string }>> = {
     "Book Consultation": CalendarDays,
     "Financial Assessment": Search,
     "Strategy & Execution": Rocket,
