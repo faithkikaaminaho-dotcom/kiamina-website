@@ -586,7 +586,13 @@ export default function KiaminaAccountingWebsite() {
     </div>
   );
 
-  const SocialIcon = ({ name, className = "h-4 w-4" }) => {
+  const SocialIcon = ({
+  name,
+  className = "h-4 w-4",
+}: {
+  name: string;
+  className?: string;
+}) => {
     if (name === "LinkedIn") {
       return (
         <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
