@@ -536,7 +536,13 @@ export default function KiaminaAccountingWebsite() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const PageButton = ({ pageKey, children }) => (
+  const PageButton = ({
+  pageKey,
+  children,
+}: {
+  pageKey: string;
+  children: React.ReactNode;
+}) => (
     <button
       type="button"
       onClick={() => openPage(pageKey)}
