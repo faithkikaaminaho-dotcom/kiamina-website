@@ -576,7 +576,11 @@ export default function KiaminaAccountingWebsite() {
     </div>
   );
 
-  const IconBadge = ({ icon: Icon }) => (
+  const IconBadge = ({
+  icon: Icon,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+}) => (
     <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-[#D9E3F4] bg-[#F1F1F1] text-[#073D7F]">
       <Icon className="h-5 w-5" />
     </div>
