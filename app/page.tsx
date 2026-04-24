@@ -30,6 +30,9 @@ export default function KiaminaAccountingWebsite() {
   const [subscriptionStatus, setSubscriptionStatus] = useState("idle");
   const [subscriptionMessage, setSubscriptionMessage] = useState("");
   const [selectedInsight, setSelectedInsight] = useState<any>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [mobileSearchTerm, setMobileSearchTerm] = useState("");
 
   const handleSubscription = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -532,9 +535,11 @@ export default function KiaminaAccountingWebsite() {
   };
 
   const openPage = (page: string) => {
-    setActivePage(page);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+  setActivePage(page);
+  setMobileMenuOpen(false);
+  setMobileSearchOpen(false);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+};
 
   const PageButton = ({
   pageKey,
@@ -1971,22 +1976,112 @@ export default function KiaminaAccountingWebsite() {
           </div>
 
           <div className="flex items-center gap-2 lg:hidden">
-            <button
-              type="button"
-              onClick={() => openPage("signin")}
-              className="inline-flex items-center rounded-full border border-[#D9E3F4] bg-white px-4 py-2.5 text-sm font-semibold text-[#073D7F] shadow-sm"
+             <button
+               type="button"
+               onClick={() => {
+                 setMobileSearchOpen(!mobileSearchOpen);
+                 setMobileMenuOpen(false);
+               }}
+               className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#D9E3F4] bg-white text-[#073D7F] shadow-sm"
+               aria-label="Open search"
+             >
+               <Search className="h-5 w-5" />
+             </button>
+
+             <button
+               type="button"
+               onClick={() => {
+                 setMobileMenuOpen(!mobileMenuOpen);
+                 setMobileSearchOpen(false);
+               }}
+               className="inline-flex items-center rounded-full border border-[#D9E3F4] bg-[#073D7F] px-4 py-2.5 text-sm font-semibold text-white shadow-sm"
             >
-              Sign In
-            </button>
-            <button
-              type="button"
-              onClick={() => openPage("get-started")}
-              className="inline-flex items-center rounded-full border border-[#D9E3F4] bg-white px-4 py-2.5 text-sm font-semibold text-[#073D7F] shadow-sm"
-            >
-              Start
-            </button>
-          </div>
+               {mobileMenuOpen ? "Close" : "Menu"}
+             </button>
+           </div>
         </div>
+        {mobileSearchOpen && (
+  <div className="border-t border-[#D9E3F4] bg-white px-6 py-4 lg:hidden">
+    <div className="relative">
+      <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6491DE]" />
+      <input
+        type="search"
+        value={mobileSearchTerm}
+        onChange={(e) => setMobileSearchTerm(e.target.value)}
+        placeholder="Search pages, services, insights..."
+        className="w-full rounded-2xl border border-[#D9E3F4] bg-[#F1F1F1] py-3 pl-11 pr-4 text-sm text-slate-900 outline-none focus:border-[#6491DE]"
+      />
+    </div>
+
+    <div className="mt-4 grid gap-2">
+      {[
+        ...pages,
+        { key: "signin", label: "Sign In" },
+        { key: "get-started", label: "Get Started" },
+        { key: "privacy", label: "Privacy Statement" },
+        { key: "legal", label: "Legal Statement" },
+      ]
+        .filter((page) =>
+          page.label.toLowerCase().includes(mobileSearchTerm.toLowerCase())
+        )
+        .map((page) => (
+          <button
+            key={page.key}
+            type="button"
+            onClick={() => openPage(page.key)}
+            className="rounded-xl bg-white px-4 py-3 text-left text-sm font-semibold text-[#073D7F] ring-1 ring-[#D9E3F4]"
+          >
+            {page.label}
+          </button>
+        ))}
+    </div>
+  </div>
+)}
+
+{mobileMenuOpen && (
+  <div className="border-t border-[#D9E3F4] bg-white px-6 py-4 lg:hidden">
+    <div className="grid gap-3">
+      {pages.map((page) => (
+        <button
+          key={page.key}
+          type="button"
+          onClick={() => openPage(page.key)}
+          className={`rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${
+            activePage === page.key
+              ? "bg-[#073D7F] text-white"
+              : "bg-[#F1F1F1] text-[#073D7F]"
+          }`}
+        >
+          {page.label}
+        </button>
+      ))}
+
+      <button
+        type="button"
+        onClick={() => openPage("signin")}
+        className="rounded-xl bg-[#F1F1F1] px-4 py-3 text-left text-sm font-semibold text-[#073D7F]"
+      >
+        Sign In
+      </button>
+
+      <button
+        type="button"
+        onClick={() => openPage("get-started")}
+        className="rounded-xl bg-[#F1F1F1] px-4 py-3 text-left text-sm font-semibold text-[#073D7F]"
+      >
+        Get Started
+      </button>
+
+      <button
+        type="button"
+        onClick={() => openPage("contact")}
+        className="rounded-xl bg-[#073D7F] px-4 py-3 text-left text-sm font-semibold text-white"
+      >
+        Book a Consultation
+      </button>
+    </div>
+  </div>
+)}
       </header>
 
       <div className="pointer-events-none fixed inset-x-0 top-0 z-40 h-24 bg-gradient-to-b from-white/35 to-transparent" />
