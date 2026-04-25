@@ -1,11 +1,8 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import {
-  Mail,
-  Phone,
-  MapPin,
   BookOpen,
   Wallet,
   FileText,
@@ -24,42 +21,10 @@ import {
   CalendarDays,
 } from "lucide-react";
 
-/*
-  IMPORTANT:
-  This cleaned file is now ONLY the homepage.
-  Other pages now live in:
-  /about
-  /services
-  /industries
-  /insights
-  /contact
-  /career
-  /signin
-  /get-started
-  /privacy
-  /legal
-*/
-
 export default function HomePage() {
   const [subscriptionEmail, setSubscriptionEmail] = useState("");
   const [subscriptionStatus, setSubscriptionStatus] = useState("idle");
   const [subscriptionMessage, setSubscriptionMessage] = useState("");
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-  const [mobileSearchTerm, setMobileSearchTerm] = useState("");
-
-  const pages = useMemo(
-    () => [
-      { key: "/", label: "Home" },
-      { key: "/about", label: "About" },
-      { key: "/services", label: "Services" },
-      { key: "/industries", label: "Industries" },
-      { key: "/insights", label: "Insights" },
-      { key: "/career", label: "Career" },
-      { key: "/contact", label: "Contact" },
-    ],
-    []
-  );
 
   const handleSubscription = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -408,18 +373,10 @@ export default function HomePage() {
     </a>
   );
 
-  const filteredMobilePages = [
-    ...pages,
-    { key: "/signin", label: "Sign In" },
-    { key: "/get-started", label: "Get Started" },
-    { key: "/privacy", label: "Privacy Statement" },
-    { key: "/legal", label: "Legal Statement" },
-  ].filter((page) =>
-    page.label.toLowerCase().includes(mobileSearchTerm.toLowerCase())
-  );
-
   return (
     <div className="min-h-screen bg-white text-slate-900">
+
+      
 
       <main>
         <section className="relative overflow-hidden bg-[#073D7F] text-white">
@@ -813,6 +770,6 @@ export default function HomePage() {
         ))}
       </div>
 
-    </div>
+          </div>
   );
 }
