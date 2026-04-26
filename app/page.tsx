@@ -567,7 +567,7 @@ export default function HomePage() {
           <SectionHeading
             eyebrow="Services"
             title="Financial operations, reporting, and strategic advisory designed for businesses and nonprofits that need clarity at leadership level."
-            body="Each service is structured around a business problem, the operating outcome it delivers, and the type of organization it best supports."
+            body="Each service is structured around a organizational problem, the operating outcome it delivers, and the type of organization it best supports."
           />
 
           <div className="mt-12 grid gap-6 lg:grid-cols-2">
@@ -813,6 +813,17 @@ export default function HomePage() {
             </div>
 
             <div className="rounded-[2rem] bg-white p-5 shadow-xl ring-1 ring-[#D9E3F4]">
+              <div className="mb-6 rounded-2xl border border-[#D9E3F4] bg-[#F1F1F1] p-5">
+                <div className="text-sm font-semibold text-[#073D7F]">
+                  What happens after booking:
+                </div>
+                <ul className="mt-3 space-y-2 text-sm text-slate-600">
+                  <li>• Review of your current accounting and reporting setup</li>
+                  <li>• Identification of gaps and risks</li>
+                  <li>• Clear recommendation on next steps</li>
+                </ul>
+              </div>
+
               <div className="overflow-hidden rounded-[1.5rem] border border-[#D9E3F4] bg-[#F1F1F1]">
                 <iframe
                   src="https://calendar.app.google/Ph7DtaeNiKSBq7B69"
@@ -823,6 +834,14 @@ export default function HomePage() {
             </div>
           </div>
         </section>
+        <div className="fixed bottom-4 left-1/2 z-50 w-[92%] max-w-md -translate-x-1/2 lg:hidden">
+          <Link
+            href="/contact"
+            className="block w-full rounded-full bg-[#073D7F] px-6 py-4 text-center text-sm font-semibold text-white shadow-xl"
+          >
+            Book a Free Consultation (Limited Slots Weekly)
+          </Link>
+        </div>
       </main>
 
       <div className="fixed bottom-5 right-5 z-40 hidden flex-col gap-3 lg:flex">
