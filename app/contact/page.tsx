@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Mail, Phone, MapPin } from "lucide-react";
 
 export default function ContactPage() {
   const [subscriptionEmail, setSubscriptionEmail] = useState("");
   const [subscriptionStatus, setSubscriptionStatus] = useState("idle");
   const [subscriptionMessage, setSubscriptionMessage] = useState("");
+
+  const [contactStatus, setContactStatus] = useState("idle");
+  const [contactMessage, setContactMessage] = useState("");
 
   const handleSubscription = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -31,6 +33,59 @@ export default function ContactPage() {
     } catch (error) {
       setSubscriptionStatus("error");
       setSubscriptionMessage("Something went wrong. Please try again.");
+    }
+  };
+
+  const handleContactSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+
+    const data = {
+      name: String(formData.get("name") || ""),
+      email: String(formData.get("email") || ""),
+      company: String(formData.get("company") || ""),
+      service: String(formData.get("service") || ""),
+      message: String(formData.get("message") || ""),
+    };
+
+    if (!data.name || !data.email || !data.message) {
+      setContactStatus("error");
+      setContactMessage("Please fill in your name, email, and message.");
+      return;
+    }
+
+    try {
+      setContactStatus("loading");
+      setContactMessage("Sending your message...");
+
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Unable to send message.");
+      }
+
+      setContactStatus("success");
+      setContactMessage(
+        "Thank you. Your message has been sent successfully. We will respond shortly."
+      );
+      form.reset();
+    } catch (error) {
+      setContactStatus("error");
+      setContactMessage(
+        error instanceof Error
+          ? error.message
+          : "Something went wrong. Please try again."
+      );
     }
   };
 
@@ -149,16 +204,19 @@ export default function ContactPage() {
               Contact
             </div>
             <h1 className="mt-4 text-4xl font-semibold tracking-tight sm:text-5xl">
-              Start with a focused consultation built around your reporting, control, and growth priorities.
+              Start with a focused consultation built around your reporting,
+              control, and growth priorities.
             </h1>
             <p className="mt-6 max-w-3xl text-lg leading-8 text-blue-100">
-              For founders, CEOs, CFOs, and decision-makers looking for serious accounting and advisory support, the next step is a structured conversation.
+              For founders, CEOs, CFOs, and decision-makers looking for serious
+              accounting and advisory support, the next step is a structured
+              conversation.
             </p>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-7xl gap-10 px-6 py-20 lg:grid-cols-[0.85fr_1.15fr] lg:px-8">
+      <section className="mx-auto grid max-w-7xl gap-10 px-6 py-20 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
         <div className="space-y-8">
           <div className="rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
             <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
@@ -174,12 +232,18 @@ export default function ContactPage() {
                 +234 906 494 2073
               </p>
               <p>
-                <span className="font-semibold text-slate-900">Head office:</span>{" "}
-                10 Akpunonu Street, Rumuodumaya, Port Harcourt, Rivers, Nigeria, 500102
+                <span className="font-semibold text-slate-900">
+                  Head office:
+                </span>{" "}
+                10 Akpunonu Street, Rumuodumaya, Port Harcourt, Rivers,
+                Nigeria, 500102
               </p>
               <p>
-                <span className="font-semibold text-slate-900">Active markets:</span>{" "}
-                Nigeria, Canada, United States, United Kingdom, Australia, and Ireland
+                <span className="font-semibold text-slate-900">
+                  Active markets:
+                </span>{" "}
+                Nigeria, Canada, United States, United Kingdom, Australia, and
+                Ireland
               </p>
             </div>
 
@@ -202,15 +266,154 @@ export default function ContactPage() {
             </div>
           </div>
 
+          <div className="rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
+            <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
+              Send a message
+            </div>
+            <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">
+              Tell us what you need help with.
+            </h2>
+            <p className="mt-4 text-sm leading-7 text-slate-600">
+              Complete the form below and our team will respond with the next
+              step for your accounting, reporting, payroll, tax, or advisory
+              needs.
+            </p>
+
+            <form onSubmit={handleContactSubmit} className="mt-6 space-y-4">
+              <div>
+                <label
+                  htmlFor="contact-name"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  Full name
+                </label>
+                <input
+                  id="contact-name"
+                  name="name"
+                  type="text"
+                  required
+                  placeholder="Enter your full name"
+                  className="w-full rounded-xl border border-[#D9E3F4] bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#073D7F]"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="contact-email"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  Email address
+                </label>
+                <input
+                  id="contact-email"
+                  name="email"
+                  type="email"
+                  required
+                  placeholder="Enter your email address"
+                  className="w-full rounded-xl border border-[#D9E3F4] bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#073D7F]"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="contact-company"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  Company / Organization
+                </label>
+                <input
+                  id="contact-company"
+                  name="company"
+                  type="text"
+                  placeholder="Enter company or organization name"
+                  className="w-full rounded-xl border border-[#D9E3F4] bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#073D7F]"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="contact-service"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  Service of interest
+                </label>
+                <select
+                  id="contact-service"
+                  name="service"
+                  className="w-full rounded-xl border border-[#D9E3F4] bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#073D7F]"
+                >
+                  <option value="">Select a service</option>
+                  <option value="Bookkeeping">Bookkeeping</option>
+                  <option value="Payroll Processing">Payroll Processing</option>
+                  <option value="Financial Reporting">
+                    Financial Reporting
+                  </option>
+                  <option value="Management Reporting">
+                    Management Reporting
+                  </option>
+                  <option value="Accounts Receivable & Payable">
+                    Accounts Receivable & Payable
+                  </option>
+                  <option value="CFO Consulting">CFO Consulting</option>
+                  <option value="Financial Modelling">
+                    Financial Modelling
+                  </option>
+                  <option value="Tax Compliance">Tax Compliance</option>
+                </select>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="contact-message"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  Message
+                </label>
+                <textarea
+                  id="contact-message"
+                  name="message"
+                  required
+                  rows={5}
+                  placeholder="Tell us about your needs"
+                  className="w-full rounded-xl border border-[#D9E3F4] bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#073D7F]"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={contactStatus === "loading"}
+                className="inline-flex items-center rounded-full bg-[#073D7F] px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {contactStatus === "loading" ? "Sending..." : "Send Message"}
+              </button>
+
+              {contactMessage ? (
+                <div
+                  className={`rounded-xl px-4 py-3 text-sm leading-7 ${
+                    contactStatus === "success"
+                      ? "bg-emerald-50 text-emerald-700"
+                      : contactStatus === "error"
+                      ? "bg-red-50 text-red-700"
+                      : "bg-slate-100 text-slate-600"
+                  }`}
+                >
+                  {contactMessage}
+                </div>
+              ) : null}
+            </form>
+          </div>
+
           <div className="rounded-[2rem] border border-[#D9E3F4] bg-[#F1F1F1] p-8 shadow-sm">
             <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
               Subscribe for insights
             </div>
             <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">
-              Receive accounting, compliance, payroll, and reporting insights by email.
+              Receive accounting, compliance, payroll, and reporting insights by
+              email.
             </h2>
             <p className="mt-4 text-sm leading-7 text-slate-600">
-              Stay ahead with practical accounting, tax, and financial management insights tailored for businesses and nonprofits. Join our mailing list to receive clear, actionable guidance that supports better decisions and long-term growth.
+              Stay ahead with practical accounting, tax, and financial
+              management insights tailored for businesses and nonprofits.
             </p>
 
             <form onSubmit={handleSubscription} className="mt-6 space-y-4">
@@ -223,6 +426,7 @@ export default function ContactPage() {
                 </label>
                 <input
                   id="subscriber-name"
+                  name="name"
                   type="text"
                   placeholder="Enter your name"
                   className="w-full rounded-xl border border-[#D9E3F4] bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#073D7F]"
@@ -252,7 +456,9 @@ export default function ContactPage() {
                 className="inline-flex items-center rounded-full bg-[#073D7F] px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-70"
                 disabled={subscriptionStatus === "loading"}
               >
-                {subscriptionStatus === "loading" ? "Connecting..." : "Subscribe"}
+                {subscriptionStatus === "loading"
+                  ? "Connecting..."
+                  : "Subscribe"}
               </button>
 
               {subscriptionMessage ? (
@@ -272,7 +478,18 @@ export default function ContactPage() {
           </div>
         </div>
 
-        <div className="rounded-[2rem] bg-white p-5 shadow-xl ring-1 ring-[#D9E3F4]">
+        <div className="rounded-[2rem] bg-white p-5 shadow-xl ring-1 ring-[#D9E3F4] lg:sticky lg:top-28">
+          <div className="mb-6 rounded-2xl border border-[#D9E3F4] bg-[#F1F1F1] p-5">
+            <div className="text-sm font-semibold text-[#073D7F]">
+              What happens after booking:
+            </div>
+            <ul className="mt-3 space-y-2 text-sm text-slate-600">
+              <li>• Review of your current accounting and reporting setup</li>
+              <li>• Identification of gaps and risks</li>
+              <li>• Clear recommendation on next steps</li>
+            </ul>
+          </div>
+
           <div className="overflow-hidden rounded-[1.5rem] border border-[#D9E3F4] bg-[#F1F1F1]">
             <iframe
               src="https://calendar.app.google/Ph7DtaeNiKSBq7B69"

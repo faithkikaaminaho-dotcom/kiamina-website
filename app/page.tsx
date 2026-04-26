@@ -423,7 +423,7 @@ export default function HomePage() {
               </div>
 
               <p className="mt-4 text-sm text-blue-100">
-                No obligation. We’ll review your accounting, reporting, payroll, or compliance needs and recommend the right next step.
+                No obligation. We will review your accounting, reporting, payroll, or compliance needs and recommend the right next step.
               </p>
 
               <div className="mt-12 grid gap-4 sm:grid-cols-2">
@@ -544,7 +544,7 @@ export default function HomePage() {
                 },
                 {
                   title: "International Operators",
-                  body: "For businesses needing remote accounting support across Nigeria, UK, US, Canada, Australia, and Ireland.",
+                  body: "For businesses and nonprofits needing remote accounting support across Nigeria, UK, US, Canada, Australia, and Ireland.",
                 },
               ].map((item) => (
                 <div

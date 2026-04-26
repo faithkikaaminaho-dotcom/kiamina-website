@@ -45,7 +45,7 @@ export default function RootLayout({
         <main className="flex-1">{children}</main>
         <SiteFooter />
        <a
-         href="https://wa.me/2349064942073"
+         href="https://wa.me/2349064962073"
          target="_blank"
          rel="noreferrer"
          className="fixed bottom-5 right-5 z-50 flex items-center gap-3 rounded-full bg-green-500 px-5 py-3 text-white shadow-xl transition hover:-translate-y-1 hover:bg-green-600"
