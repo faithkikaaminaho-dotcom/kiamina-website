@@ -411,16 +411,20 @@ export default function HomePage() {
                   href="/contact"
                   className="rounded-full bg-[#6491DE] px-7 py-3.5 text-center text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-[#4F7FD1]"
                 >
-                  Book a Consultation
+                  Book a Free Consultation
                 </Link>
 
                 <Link
                   href="/services"
                   className="rounded-full border border-white/20 px-7 py-3.5 text-center text-sm font-semibold text-white transition hover:bg-white/5"
                 >
-                  View Services
+                  See How We Can Help
                 </Link>
               </div>
+
+              <p className="mt-4 text-sm text-blue-100">
+                No obligation. We’ll review your accounting, reporting, payroll, or compliance needs and recommend the right next step.
+              </p>
 
               <div className="mt-12 grid gap-4 sm:grid-cols-2">
                 {[
@@ -490,6 +494,24 @@ export default function HomePage() {
         <section className="border-b border-[#D9E3F4] bg-white">
           <div className="mx-auto grid max-w-7xl gap-6 px-6 py-8 md:grid-cols-4 lg:px-8">
             {[
+              "Serving clients across 6 active markets",
+              "Trusted by businesses and nonprofits",
+              "CFO-level insight without full-time CFO cost",
+              "Structured reporting, payroll, and compliance support",
+            ].map((item) => (
+              <div
+                key={item}
+                className="rounded-2xl border border-[#D9E3F4] bg-[#F1F1F1] p-5 text-sm font-semibold leading-6 text-[#073D7F]"
+              >
+                {item}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="border-b border-[#D9E3F4] bg-white">
+          <div className="mx-auto grid max-w-7xl gap-6 px-6 py-8 md:grid-cols-4 lg:px-8">
+            {[
               "Remote delivery with structured operational discipline",
               "Industry-aware financial support for complex businesses",
               "Reporting built for executive visibility and control",
@@ -502,10 +524,49 @@ export default function HomePage() {
           </div>
         </section>
 
+        <section className="bg-white">
+          <div className="mx-auto max-w-7xl px-6 py-20 lg:px-8">
+            <SectionHeading
+              eyebrow="Who We Help"
+              title="Built for leaders who need financial clarity, not just bookkeeping."
+              body="Kiamina supports organizations that need reliable records, stronger compliance, better reporting, and strategic financial visibility."
+            />
+
+            <div className="mt-12 grid gap-6 md:grid-cols-3">
+              {[
+                {
+                  title: "Growing Businesses",
+                  body: "For founders and CEOs who need clean books, better reporting, and stronger financial control.",
+                },
+                {
+                  title: "Nonprofits",
+                  body: "For organizations that need fund accountability, transparent reporting, and compliance discipline.",
+                },
+                {
+                  title: "International Operators",
+                  body: "For businesses needing remote accounting support across Nigeria, UK, US, Canada, Australia, and Ireland.",
+                },
+              ].map((item) => (
+                <div
+                  key={item.title}
+                  className="rounded-[1.75rem] border border-[#D9E3F4] bg-[#F1F1F1] p-7"
+                >
+                  <h3 className="text-xl font-semibold text-slate-950">
+                    {item.title}
+                  </h3>
+                  <p className="mt-4 text-sm leading-7 text-slate-600">
+                    {item.body}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         <section className="mx-auto max-w-7xl px-6 py-20 lg:px-8">
           <SectionHeading
             eyebrow="Services"
-            title="Financial operations, reporting, and strategic advisory designed for businesses that need clarity at leadership level."
+            title="Financial operations, reporting, and strategic advisory designed for businesses and nonprofits that need clarity at leadership level."
             body="Each service is structured around a business problem, the operating outcome it delivers, and the type of organization it best supports."
           />
 
