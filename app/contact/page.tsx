@@ -229,7 +229,7 @@ export default function ContactPage() {
               </p>
               <p>
                 <span className="font-semibold text-slate-900">Phone:</span>{" "}
-                +234 906 494 2073
+                +234 906 496 2073
               </p>
               <p>
                 <span className="font-semibold text-slate-900">
