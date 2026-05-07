@@ -150,9 +150,51 @@ const IconBadge = ({
 );
 
 export const metadata = {
-  title: "Accounting Services | Kiamina Accounting Services",
+  title:
+    "Accounting, Payroll, Tax & CFO Advisory Services in Nigeria | Kiamina Accounting Services",
+
   description:
-    "Explore Kiamina Accounting Services including bookkeeping, payroll processing, financial reporting, management reporting, tax compliance, financial modelling, and CFO consulting.",
+    "Professional accounting services in Port Harcourt, Lagos, Abuja, and across Nigeria including bookkeeping, payroll processing, tax compliance, financial reporting, management reporting, financial modelling, and CFO advisory services.",
+
+  keywords: [
+    "accounting services Nigeria",
+    "bookkeeping services Nigeria",
+    "payroll processing Nigeria",
+    "tax compliance Nigeria",
+    "financial reporting Nigeria",
+    "CFO advisory Nigeria",
+
+    "accounting services Port Harcourt",
+    "bookkeeping services Port Harcourt",
+    "payroll processing Port Harcourt",
+
+    "accounting services Lagos",
+    "bookkeeping services Lagos",
+    "payroll processing Lagos",
+
+    "accounting services Abuja",
+    "bookkeeping services Abuja",
+
+    "accounting services United Kingdom",
+    "bookkeeping services UK",
+
+    "accounting services Canada",
+    "bookkeeping services Canada",
+
+    "accounting services United States",
+    "bookkeeping services USA",
+
+    "accounting services Australia",
+    "bookkeeping services Australia",
+
+    "accounting services Ireland",
+    "bookkeeping services Ireland",
+
+    "financial modelling services",
+    "management reporting services",
+    "outsourced accounting services",
+    "nonprofit accounting services",
+  ],
 };
 
 export default function ServicesPage() {
@@ -176,7 +218,12 @@ export default function ServicesPage() {
               Accounting, reporting, compliance, and strategic finance support designed for serious businesses.
             </h1>
             <p className="mt-6 max-w-3xl text-lg leading-8 text-blue-100">
-              Each capability is designed to improve financial visibility, strengthen control, and support better leadership decisions.
+              Kiamina Accounting Services provides bookkeeping, payroll
+              processing, financial reporting, tax compliance, management
+              reporting, financial modelling, and CFO advisory services
+              for businesses and nonprofits in Port Harcourt, Lagos,
+              Abuja, Nigeria, and internationally across the United Kingdom,
+              Canada, the United States, Australia, and Ireland.
             </p>
           </div>
         </div>
@@ -248,6 +295,113 @@ export default function ServicesPage() {
               </div>
             );
           })}
+        </div>
+      </section>
+            <section className="bg-white">
+        <div className="mx-auto max-w-7xl px-6 py-20 lg:px-8">
+          <h2 className="text-3xl font-semibold tracking-tight text-slate-950">
+            Accounting Services Across Nigeria and International Markets
+          </h2>
+
+          <div className="mt-8 space-y-6 text-base leading-8 text-slate-600">
+            <p>
+              Kiamina Accounting Services supports businesses and nonprofits
+              in Port Harcourt, Lagos, Abuja, and across Nigeria with
+              professional bookkeeping, payroll processing, financial
+              reporting, tax compliance, management reporting, and CFO
+              advisory services.
+            </p>
+
+            <p>
+              We also support international organizations and business
+              operators across the United Kingdom, Canada, the United
+              States, Australia, and Ireland through structured accounting
+              systems and financial reporting support.
+            </p>
+
+            <p>
+              Our accounting and advisory services are designed to improve
+              financial visibility, strengthen operational control, and
+              support sustainable business growth across local and
+              international markets.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-[#F1F1F1]">
+        <div className="mx-auto max-w-7xl px-6 py-20 lg:px-8">
+          <h2 className="text-3xl font-semibold tracking-tight text-slate-950">
+            Frequently Asked Questions
+          </h2>
+
+          <div className="mt-10 space-y-8">
+            <div>
+              <h3 className="text-xl font-semibold text-slate-950">
+                Do you provide accounting services for small businesses?
+              </h3>
+
+              <p className="mt-3 text-base leading-8 text-slate-600">
+                Yes. We support startups, growing businesses, and
+                established organizations with bookkeeping, payroll,
+                tax compliance, and financial reporting.
+              </p>
+            </div>
+
+            <div>
+              <h3 className="text-xl font-semibold text-slate-950">
+                Do you work with international clients?
+              </h3>
+
+              <p className="mt-3 text-base leading-8 text-slate-600">
+                Yes. Kiamina Accounting Services supports clients across
+                Nigeria, the United Kingdom, Canada, the United States,
+                Australia, and Ireland.
+              </p>
+            </div>
+
+            <div>
+              <h3 className="text-xl font-semibold text-slate-950">
+                What accounting services do you provide?
+              </h3>
+
+              <p className="mt-3 text-base leading-8 text-slate-600">
+                We provide bookkeeping, payroll processing, financial
+                reporting, management reporting, tax compliance,
+                financial modelling, and CFO consulting services.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-white">
+        <div className="mx-auto max-w-7xl px-6 py-16 lg:px-8">
+          <h2 className="text-3xl font-semibold tracking-tight text-slate-950">
+            Ready to strengthen your financial systems?
+          </h2>
+
+          <p className="mt-4 max-w-2xl text-base leading-8 text-slate-600">
+            Book a consultation to review your accounting,
+            payroll, reporting, compliance, and financial
+            management needs.
+          </p>
+
+          <div className="mt-8 flex flex-wrap gap-4">
+            <a
+              href="/contact"
+              className="rounded-full bg-[#073D7F] px-6 py-3 text-sm font-semibold text-white"
+            >
+              Book a Consultation
+            </a>
+
+            <a
+              href="/insights"
+              className="rounded-full border border-[#D9E3F4] bg-white px-6 py-3 text-sm font-semibold text-[#073D7F]"
+            >
+              Read Insights
+            </a>
+          </div>
         </div>
       </section>
     </main>
