@@ -172,6 +172,20 @@ export default function SiteFooter() {
           </div>
         </div>
       </div>
+
+      <div className="border-t border-[#D9E3F4]">
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-6 py-5 text-xs text-slate-500 md:flex-row md:items-center md:justify-between lg:px-8">
+          <div>
+            © {new Date().getFullYear()} Kiamina Accounting Services. All
+            rights reserved.
+          </div>
+
+          <div>
+            IFRS-aligned support across applicable jurisdictions. US reporting
+            support is structured around US GAAP.
+          </div>
+        </div>
+      </div>
     </footer>
   );
 }

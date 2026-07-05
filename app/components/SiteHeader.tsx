@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
+import JurisdictionSelector from "@/app/components/JurisdictionSelector";
 
 export default function SiteHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -38,18 +39,22 @@ export default function SiteHeader() {
   );
 
   return (
-    <header className="sticky top-0 z-50 border-b border-[#D9E3F4]/70 bg-white/80 backdrop-blur-xl supports-[backdrop-filter]:bg-white/75">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 transition-all duration-300 lg:px-8">
-        <Link href="/" onClick={closeMenus} className="group flex items-center gap-3 text-left">
-          <div className="overflow-hidden rounded-2xl border border-[#D9E3F4] bg-white p-2 shadow-sm transition duration-300 group-hover:-translate-y-0.5 group-hover:shadow-md">
+    <header className="sticky top-0 z-50 border-b border-[#D9E3F4]/70 bg-white/85 backdrop-blur-xl supports-[backdrop-filter]:bg-white/75">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-3 lg:px-8">
+        <Link
+          href="/"
+          onClick={closeMenus}
+          className="group flex min-w-0 shrink-0 items-center gap-3 text-left"
+        >
+          <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-[#D9E3F4] bg-white p-1.5 shadow-sm transition duration-300 group-hover:-translate-y-0.5 group-hover:shadow-md">
             <img
               src="/logo.png"
               alt="Kiamina Accounting Services"
-              className="h-10 w-auto object-contain"
+              className="h-full w-full object-contain"
             />
           </div>
 
-          <div>
+          <div className="hidden 2xl:block">
             <div className="text-[11px] font-semibold uppercase tracking-[0.30em] text-[#073D7F]">
               Kiamina Accounting Services
             </div>
@@ -59,36 +64,40 @@ export default function SiteHeader() {
           </div>
         </Link>
 
-        <div className="hidden items-center gap-3 lg:flex">
+        <div className="hidden flex-1 items-center justify-center xl:flex">
           <nav className="flex items-center rounded-full border border-[#D9E3F4] bg-white/90 p-1.5 shadow-sm">
             {pages.map((page) => (
               <Link
                 key={page.key}
                 href={page.key}
-                className="rounded-full px-4 py-2 text-sm font-medium text-[#073D7F] transition hover:bg-[#F1F1F1] hover:text-[#073D7F]"
+                className="rounded-full px-4 py-2 text-sm font-medium text-[#073D7F] transition hover:bg-[#F1F1F1]"
               >
                 {page.label}
               </Link>
             ))}
           </nav>
+        </div>
+
+        <div className="hidden shrink-0 items-center gap-2 lg:flex">
+          <JurisdictionSelector />
 
           <Link
             href="/signin"
-            className="inline-flex items-center rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F] shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-lg"
+            className="inline-flex h-11 items-center rounded-full border border-[#D9E3F4] bg-white px-4 text-sm font-semibold text-[#073D7F] shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
           >
             Sign In
           </Link>
 
           <Link
             href="/get-started"
-            className="inline-flex items-center rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F] shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-lg"
+            className="inline-flex h-11 items-center rounded-full border border-[#D9E3F4] bg-white px-4 text-sm font-semibold text-[#073D7F] shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
           >
             Get Started
           </Link>
 
           <Link
             href="/contact"
-            className="inline-flex items-center rounded-full bg-[#073D7F] px-5 py-3 text-sm font-semibold text-white shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-lg"
+            className="inline-flex h-11 items-center rounded-full bg-[#073D7F] px-4 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
           >
             Book a Consultation
           </Link>
@@ -118,6 +127,20 @@ export default function SiteHeader() {
             {mobileMenuOpen ? "Close" : "Menu"}
           </button>
         </div>
+      </div>
+
+      <div className="border-t border-[#D9E3F4]/60 px-6 py-2 xl:hidden lg:block hidden">
+        <nav className="mx-auto flex max-w-7xl items-center justify-center gap-1">
+          {pages.map((page) => (
+            <Link
+              key={page.key}
+              href={page.key}
+              className="rounded-full px-3 py-1.5 text-sm font-medium text-[#073D7F] transition hover:bg-[#F1F1F1]"
+            >
+              {page.label}
+            </Link>
+          ))}
+        </nav>
       </div>
 
       {mobileSearchOpen && (
@@ -151,6 +174,10 @@ export default function SiteHeader() {
       {mobileMenuOpen && (
         <div className="border-t border-[#D9E3F4] bg-white px-6 py-4 lg:hidden">
           <div className="grid gap-3">
+            <div className="rounded-xl bg-[#F1F1F1] p-3">
+              <JurisdictionSelector />
+            </div>
+
             {pages.map((page) => (
               <Link
                 key={page.key}
