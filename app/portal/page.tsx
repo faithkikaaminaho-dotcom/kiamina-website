@@ -255,6 +255,12 @@ export default async function PortalPage() {
                   </h2>
 
                   <p className="mt-5 text-base leading-8 text-slate-600">
+                    <a
+                      href="/portal/clients/new"
+                      className="mt-6 inline-flex rounded-full bg-[#073D7F] px-6 py-3 text-sm font-semibold text-white"
+                    >
+                     Create Client Workspace
+                    </a>
                     These are the latest client records stored in Supabase. This
                     confirms the portal is now connected to real database data.
                   </p>
@@ -277,9 +283,12 @@ export default async function PortalPage() {
                         key={client.id}
                         className="grid grid-cols-5 px-5 py-4 text-sm text-slate-700"
                       >
-                        <div className="font-semibold text-slate-950">
+                        <a
+                          href={`/portal/clients/${client.id}`}
+                          className="font-semibold text-[#073D7F] hover:underline"
+                        >
                           {client.name}
-                        </div>
+                        </a>
                         <div>{client.country || "—"}</div>
                         <div>{client.city || "—"}</div>
                         <div>{client.industry || "—"}</div>
