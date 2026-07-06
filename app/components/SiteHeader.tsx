@@ -39,14 +39,14 @@ export default function SiteHeader() {
   );
 
   return (
-    <header className="sticky top-0 z-50 border-b border-[#D9E3F4]/70 bg-white/85 backdrop-blur-xl supports-[backdrop-filter]:bg-white/75">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-3 lg:px-8">
+    <header className="sticky top-0 z-50 w-full overflow-x-hidden border-b border-[#D9E3F4]/70 bg-white/85 backdrop-blur-xl supports-[backdrop-filter]:bg-white/75">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
         <Link
           href="/"
           onClick={closeMenus}
-          className="group flex min-w-0 shrink-0 items-center gap-3 text-left"
+          className="group flex min-w-0 items-center gap-3 text-left"
         >
-          <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-[#D9E3F4] bg-white p-1.5 shadow-sm transition duration-300 group-hover:-translate-y-0.5 group-hover:shadow-md">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[#D9E3F4] bg-white p-1.5 shadow-sm transition duration-300 group-hover:-translate-y-0.5 group-hover:shadow-md">
             <img
               src="/logo.png"
               alt="Kiamina Accounting Services"
@@ -54,7 +54,7 @@ export default function SiteHeader() {
             />
           </div>
 
-          <div className="hidden 2xl:block">
+          <div className="hidden sm:block">
             <div className="text-[11px] font-semibold uppercase tracking-[0.30em] text-[#073D7F]">
               Kiamina Accounting Services
             </div>
@@ -64,21 +64,7 @@ export default function SiteHeader() {
           </div>
         </Link>
 
-        <div className="hidden flex-1 items-center justify-center xl:flex">
-          <nav className="flex items-center rounded-full border border-[#D9E3F4] bg-white/90 p-1.5 shadow-sm">
-            {pages.map((page) => (
-              <Link
-                key={page.key}
-                href={page.key}
-                className="rounded-full px-4 py-2 text-sm font-medium text-[#073D7F] transition hover:bg-[#F1F1F1]"
-              >
-                {page.label}
-              </Link>
-            ))}
-          </nav>
-        </div>
-
-        <div className="hidden shrink-0 items-center gap-2 lg:flex">
+        <div className="hidden items-center gap-2 lg:flex">
           <JurisdictionSelector />
 
           <Link
@@ -99,7 +85,7 @@ export default function SiteHeader() {
             href="/contact"
             className="inline-flex h-11 items-center rounded-full bg-[#073D7F] px-4 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
           >
-            Book a Consultation
+            Book Consultation
           </Link>
         </div>
 
@@ -129,13 +115,13 @@ export default function SiteHeader() {
         </div>
       </div>
 
-      <div className="border-t border-[#D9E3F4]/60 px-6 py-2 xl:hidden lg:block hidden">
-        <nav className="mx-auto flex max-w-7xl items-center justify-center gap-1">
+      <div className="hidden border-t border-[#D9E3F4]/60 px-4 py-2 lg:block">
+        <nav className="mx-auto flex max-w-7xl items-center justify-center gap-2">
           {pages.map((page) => (
             <Link
               key={page.key}
               href={page.key}
-              className="rounded-full px-3 py-1.5 text-sm font-medium text-[#073D7F] transition hover:bg-[#F1F1F1]"
+              className="rounded-full px-4 py-2 text-sm font-medium text-[#073D7F] transition hover:bg-[#F1F1F1]"
             >
               {page.label}
             </Link>
@@ -210,7 +196,7 @@ export default function SiteHeader() {
               onClick={closeMenus}
               className="rounded-xl bg-[#073D7F] px-4 py-3 text-left text-sm font-semibold text-white"
             >
-              Book a Consultation
+              Book Consultation
             </Link>
           </div>
         </div>
