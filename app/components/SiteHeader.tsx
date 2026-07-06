@@ -39,7 +39,7 @@ export default function SiteHeader() {
   );
 
   return (
-    <header className="sticky top-0 z-50 w-full overflow-x-hidden border-b border-[#D9E3F4]/70 bg-white/85 backdrop-blur-xl supports-[backdrop-filter]:bg-white/75">
+    <header className="sticky top-0 z-50 w-full border-b border-[#D9E3F4]/70 bg-white/85 backdrop-blur-xl supports-[backdrop-filter]:bg-white/75">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
         <Link
           href="/"

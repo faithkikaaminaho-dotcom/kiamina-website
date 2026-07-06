@@ -73,7 +73,7 @@ export default function JurisdictionSelector() {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-3 w-80 overflow-hidden rounded-2xl border border-[#D9E3F4] bg-white shadow-xl">
+        <div className="absolute right-0 z-[9999] mt-3 w-80 overflow-hidden rounded-2xl border border-[#D9E3F4] bg-white shadow-xl">
           {jurisdictions.map((item) => (
             <button
               key={item.code}
