@@ -1,5 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 
+export const runtime = "nodejs";
+
 export async function POST(request: Request) {
   const supabase = await createClient();
 
@@ -23,14 +25,62 @@ export async function POST(request: Request) {
 
   const body = await request.json();
 
-  const { name, country, city, industry, business_type } = body;
+  const {
+    name,
+    jurisdiction_code,
+    city,
+    industry_id,
+    business_type,
+  }: {
+    name?: string;
+    jurisdiction_code?: string;
+    city?: string;
+    industry_id?: string;
+    business_type?: string;
+  } = body;
+
+  if (!name || !jurisdiction_code) {
+    return Response.json(
+      { error: "Client name and jurisdiction are required." },
+      { status: 400 }
+    );
+  }
+
+  const { data: jurisdiction, error: jurisdictionError } = await supabase
+    .from("jurisdictions")
+    .select("code, name, reporting_framework_code, currency_code")
+    .eq("code", jurisdiction_code)
+    .single();
+
+  if (jurisdictionError || !jurisdiction) {
+    return Response.json(
+      { error: "Invalid jurisdiction selected." },
+      { status: 400 }
+    );
+  }
+
+  let industryName: string | null = null;
+
+  if (industry_id) {
+    const { data: industry } = await supabase
+      .from("industries")
+      .select("name")
+      .eq("id", industry_id)
+      .single();
+
+    industryName = industry?.name || null;
+  }
 
   const { error } = await supabase.from("clients").insert({
     name,
-    country,
-    city,
-    industry,
-    business_type,
+    jurisdiction_code: jurisdiction.code,
+    country: jurisdiction.name,
+    city: city || null,
+    industry_id: industry_id || null,
+    industry: industryName,
+    business_type: business_type || null,
+    reporting_framework_code: jurisdiction.reporting_framework_code,
+    currency_code: jurisdiction.currency_code,
     status: "ONBOARDING",
     created_by: user.id,
   });
@@ -38,6 +88,19 @@ export async function POST(request: Request) {
   if (error) {
     return Response.json({ error: error.message }, { status: 400 });
   }
+
+  await supabase.from("audit_logs").insert({
+    user_id: user.id,
+    action: "CLIENT_CREATED",
+    details: {
+      name,
+      jurisdiction_code: jurisdiction.code,
+      country: jurisdiction.name,
+      reporting_framework_code: jurisdiction.reporting_framework_code,
+      currency_code: jurisdiction.currency_code,
+      industry: industryName,
+    },
+  });
 
   return Response.json({ success: true });
 }

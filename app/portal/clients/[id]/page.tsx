@@ -43,7 +43,9 @@ export default async function ClientWorkspacePage({
 
   const { data: client } = await supabase
     .from("clients")
-    .select("id, name, country, city, industry, business_type, status, created_at")
+    .select(
+      "id, name, country, city, industry, business_type, status, created_at, jurisdiction_code, reporting_framework_code, currency_code"
+    )
     .eq("id", id)
     .single();
 
@@ -191,17 +193,34 @@ export default async function ClientWorkspacePage({
 
             <div className="mt-6 space-y-4 text-sm text-slate-600">
               <p>
-                <span className="font-semibold text-slate-950">Country:</span>{" "}
-                {client.country || "—"}
+                <span className="font-semibold text-slate-950">Jurisdiction:</span>{" "}
+                {client.country || client.jurisdiction_code || "—"}
               </p>
+            
+              <p>
+                <span className="font-semibold text-slate-950">
+                  Reporting Framework:
+                </span>{" "}
+                {client.reporting_framework_code === "US_GAAP"
+                  ? "US GAAP"
+                  : client.reporting_framework_code || "—"}
+              </p>
+            
+              <p>
+                <span className="font-semibold text-slate-950">Base Currency:</span>{" "}
+                {client.currency_code || "—"}
+              </p>
+            
               <p>
                 <span className="font-semibold text-slate-950">City:</span>{" "}
                 {client.city || "—"}
               </p>
+            
               <p>
                 <span className="font-semibold text-slate-950">Industry:</span>{" "}
                 {client.industry || "—"}
-              </p>
+               </p>
+
               <p>
                 <span className="font-semibold text-slate-950">
                   Business Type:
