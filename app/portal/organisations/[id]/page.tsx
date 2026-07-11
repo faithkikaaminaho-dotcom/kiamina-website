@@ -378,14 +378,21 @@ export default async function OrganisationDetailPage({
             <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">
               Engagement workspace foundation
             </h2>
+            <a
+              href={`/portal/organisations/${organisation.id}/engagements/new`}
+              className="mt-5 inline-flex rounded-full bg-[#073D7F] px-5 py-3 text-sm font-semibold text-white"
+            >
+              Create Engagement
+            </a>
 
             <div className="mt-8 space-y-4">
               {engagements && engagements.length > 0 ? (
                 engagements.map((engagement) => (
-                  <div
+                  <a
                     key={engagement.id}
-                    className="rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] p-5"
-                  >
+                    href={`/portal/engagements/${engagement.id}`}
+                    className="block rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] p-5 transition hover:border-[#073D7F]"
+                 >
                     <div className="font-semibold text-slate-950">
                       {engagement.name}
                     </div>
@@ -394,7 +401,7 @@ export default async function OrganisationDetailPage({
                       {engagement.engagement_type} ·{" "}
                       {formatStatus(engagement.status)}
                     </div>
-                  </div>
+                  </a>
                 ))
               ) : (
                 <div className="rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] p-5 text-sm text-slate-500">
