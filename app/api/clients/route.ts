@@ -71,28 +71,82 @@ export async function POST(request: Request) {
     industryName = industry?.name || null;
   }
 
-  const { error } = await supabase.from("clients").insert({
-    name,
-    jurisdiction_code: jurisdiction.code,
-    country: jurisdiction.name,
-    city: city || null,
-    industry_id: industry_id || null,
-    industry: industryName,
-    business_type: business_type || null,
-    reporting_framework_code: jurisdiction.reporting_framework_code,
-    currency_code: jurisdiction.currency_code,
-    status: "ONBOARDING",
-    created_by: user.id,
-  });
+  const { data: clientRecord, error: clientError } = await supabase
+    .from("clients")
+    .insert({
+      name,
+      jurisdiction_code: jurisdiction.code,
+      country: jurisdiction.name,
+      city: city || null,
+      industry_id: industry_id || null,
+      industry: industryName,
+      business_type: business_type || null,
+      reporting_framework_code: jurisdiction.reporting_framework_code,
+      currency_code: jurisdiction.currency_code,
+      status: "ONBOARDING",
+      created_by: user.id,
+    })
+    .select("id")
+    .single();
 
-  if (error) {
-    return Response.json({ error: error.message }, { status: 400 });
+  if (clientError || !clientRecord) {
+    return Response.json(
+      { error: clientError?.message || "Unable to create client." },
+      { status: 400 }
+    );
+  }
+
+  const { data: organisationRecord, error: organisationError } = await supabase
+    .from("organisations")
+    .insert({
+      legal_name: name,
+      organisation_type: business_type || null,
+      status: "onboarding",
+      jurisdiction_code: jurisdiction.code,
+      reporting_framework_code: jurisdiction.reporting_framework_code,
+      base_currency_code: jurisdiction.currency_code,
+      legacy_client_id: clientRecord.id,
+      created_by: user.id,
+    })
+    .select("id")
+    .single();
+
+  if (organisationError || !organisationRecord) {
+    return Response.json(
+      {
+        error:
+          organisationError?.message ||
+          "Client created, but organisation creation failed.",
+      },
+      { status: 500 }
+    );
+  }
+
+  const { error: updateClientError } = await supabase
+    .from("clients")
+    .update({
+      organisation_id: organisationRecord.id,
+    })
+    .eq("id", clientRecord.id);
+
+  if (updateClientError) {
+    return Response.json(
+      {
+        error:
+          "Client and organisation created, but linking failed: " +
+          updateClientError.message,
+      },
+      { status: 500 }
+    );
   }
 
   await supabase.from("audit_logs").insert({
     user_id: user.id,
-    action: "CLIENT_CREATED",
+    organisation_id: organisationRecord.id,
+    action: "ORGANISATION_CREATED",
     details: {
+      client_id: clientRecord.id,
+      organisation_id: organisationRecord.id,
       name,
       jurisdiction_code: jurisdiction.code,
       country: jurisdiction.name,
@@ -102,5 +156,9 @@ export async function POST(request: Request) {
     },
   });
 
-  return Response.json({ success: true });
+  return Response.json({
+    success: true,
+    clientId: clientRecord.id,
+    organisationId: organisationRecord.id,
+  });
 }

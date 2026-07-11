@@ -1,0 +1,469 @@
+import { redirect } from "next/navigation";
+import { createClient } from "@/utils/supabase/server";
+import {
+  ArrowLeft,
+  Archive,
+  Building2,
+  CheckCircle,
+  Clock,
+  Coins,
+  FileText,
+  Globe2,
+  MessageSquare,
+  ShieldCheck,
+} from "lucide-react";
+
+export const dynamic = "force-dynamic";
+
+function formatFramework(code?: string | null) {
+  if (!code) return "—";
+
+  const labels: Record<string, string> = {
+    IFRS: "IFRS",
+    US_GAAP: "US GAAP",
+    IFRS_SME: "IFRS for SMEs",
+  };
+
+  return labels[code] || code;
+}
+
+function formatStatus(status?: string | null) {
+  if (!status) return "—";
+
+  return status
+    .split("_")
+    .join(" ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+export default async function OrganisationDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/signin");
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  const role = profile?.role as string | undefined;
+
+  if (!role || !["SUPER_ADMIN", "ADMIN", "STAFF"].includes(role)) {
+    redirect("/portal");
+  }
+
+  const { data: organisation } = await supabase
+    .from("organisations")
+    .select(
+      "id, legal_name, trading_name, organisation_type, status, jurisdiction_code, reporting_framework_code, base_currency_code, registration_number, tax_identification_number, financial_year_end_month, financial_year_end_day, primary_contact_name, primary_contact_email, primary_contact_phone, risk_rating, legacy_client_id, created_at"
+    )
+    .eq("id", id)
+    .single();
+
+  if (!organisation) {
+    redirect("/portal/organisations");
+  }
+
+  const { count: documentsCount } = await supabase
+    .from("documents")
+    .select("*", { count: "exact", head: true })
+    .eq("organisation_id", id);
+
+  const { count: pendingReviewCount } = await supabase
+    .from("document_reviews")
+    .select("*", { count: "exact", head: true })
+    .eq("organisation_id", id)
+    .eq("status", "PENDING_REVIEW");
+
+  const { count: approvedCount } = await supabase
+    .from("document_reviews")
+    .select("*", { count: "exact", head: true })
+    .eq("organisation_id", id)
+    .eq("status", "APPROVED");
+
+  const { count: engagementsCount } = await supabase
+    .from("engagements")
+    .select("*", { count: "exact", head: true })
+    .eq("organisation_id", id);
+
+  const { data: recentDocuments } = await supabase
+    .from("documents")
+    .select("id, file_name, module, status, created_at, client_id")
+    .eq("organisation_id", id)
+    .order("created_at", { ascending: false })
+    .limit(6);
+
+  const { data: engagements } = await supabase
+    .from("engagements")
+    .select(
+      "id, name, engagement_type, status, reporting_period_start, reporting_period_end"
+    )
+    .eq("organisation_id", id)
+    .order("created_at", { ascending: false })
+    .limit(6);
+
+  const stats = [
+    {
+      label: "Documents",
+      value: documentsCount ?? 0,
+      icon: FileText,
+    },
+    {
+      label: "Pending Reviews",
+      value: pendingReviewCount ?? 0,
+      icon: Clock,
+    },
+    {
+      label: "Approved Reviews",
+      value: approvedCount ?? 0,
+      icon: CheckCircle,
+    },
+    {
+      label: "Engagements",
+      value: engagementsCount ?? 0,
+      icon: Archive,
+    },
+  ];
+
+  const financialYearEnd =
+    organisation.financial_year_end_month && organisation.financial_year_end_day
+      ? `${organisation.financial_year_end_day}/${organisation.financial_year_end_month}`
+      : "—";
+
+  return (
+    <main className="min-h-screen bg-[#F8FAFC]">
+      <section className="border-b border-[#D9E3F4] bg-white">
+        <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+          <a
+            href="/portal/organisations"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-[#073D7F]"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to organisations
+          </a>
+
+          <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_0.35fr]">
+            <div>
+              <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
+                Organisation
+              </div>
+
+              <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950">
+                {organisation.legal_name}
+              </h1>
+
+              <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
+                Manage organisation-level configuration, documents,
+                engagements, accounting, reporting, tax, payroll, compliance,
+                and advisory workflows.
+              </p>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F1F1F1] p-5">
+              <div className="flex items-center gap-3">
+                <Building2 className="h-5 w-5 text-[#073D7F]" />
+                <div className="text-sm font-semibold text-slate-950">
+                  Organisation Status
+                </div>
+              </div>
+
+              <div className="mt-4 inline-flex rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#073D7F]">
+                {formatStatus(organisation.status)}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          {stats.map((stat) => {
+            const Icon = stat.icon;
+
+            return (
+              <div
+                key={stat.label}
+                className="rounded-[1.5rem] border border-[#D9E3F4] bg-white p-6 shadow-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-medium text-slate-500">
+                    {stat.label}
+                  </div>
+
+                  <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-[#F1F1F1] text-[#073D7F]">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                </div>
+
+                <div className="mt-5 text-3xl font-semibold text-slate-950">
+                  {stat.value}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-8 grid gap-8 xl:grid-cols-[0.8fr_1.2fr]">
+          <section className="rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
+            <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
+              Organisation Profile
+            </div>
+
+            <div className="mt-6 space-y-4 text-sm text-slate-600">
+              <p>
+                <span className="font-semibold text-slate-950">
+                  Trading Name:
+                </span>{" "}
+                {organisation.trading_name || "—"}
+              </p>
+
+              <p>
+                <span className="font-semibold text-slate-950">
+                  Organisation Type:
+                </span>{" "}
+                {organisation.organisation_type || "—"}
+              </p>
+
+              <p>
+                <span className="font-semibold text-slate-950">
+                  Registration Number:
+                </span>{" "}
+                {organisation.registration_number || "—"}
+              </p>
+
+              <p>
+                <span className="font-semibold text-slate-950">
+                  Tax Identification Number:
+                </span>{" "}
+                {organisation.tax_identification_number || "—"}
+              </p>
+
+              <p>
+                <span className="font-semibold text-slate-950">
+                  Financial Year End:
+                </span>{" "}
+                {financialYearEnd}
+              </p>
+
+              <p>
+                <span className="font-semibold text-slate-950">
+                  Risk Rating:
+                </span>{" "}
+                {formatStatus(organisation.risk_rating)}
+              </p>
+            </div>
+          </section>
+
+          <section className="rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
+            <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
+              Jurisdiction Configuration
+            </div>
+
+            <div className="mt-6 grid gap-4 sm:grid-cols-3">
+              <div className="rounded-2xl bg-[#F1F1F1] p-5">
+                <Globe2 className="h-5 w-5 text-[#073D7F]" />
+                <div className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Jurisdiction
+                </div>
+                <div className="mt-2 font-semibold text-slate-950">
+                  {organisation.jurisdiction_code || "—"}
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-[#F1F1F1] p-5">
+                <FileText className="h-5 w-5 text-[#073D7F]" />
+                <div className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Framework
+                </div>
+                <div className="mt-2 font-semibold text-slate-950">
+                  {formatFramework(organisation.reporting_framework_code)}
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-[#F1F1F1] p-5">
+                <Coins className="h-5 w-5 text-[#073D7F]" />
+                <div className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Base Currency
+                </div>
+                <div className="mt-2 font-semibold text-slate-950">
+                  {organisation.base_currency_code || "—"}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-[#D9E3F4] bg-white p-5 text-sm text-slate-600">
+              This configuration will drive accounting, financial reporting,
+              tax, payroll, compliance, and advisory workflows for this
+              organisation.
+            </div>
+          </section>
+        </div>
+
+        <section className="mt-8 rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
+          <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
+            Primary Contact
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            <div className="rounded-2xl bg-[#F1F1F1] p-5 text-sm text-slate-600">
+              <div className="font-semibold text-slate-950">Name</div>
+              <div className="mt-2">{organisation.primary_contact_name || "—"}</div>
+            </div>
+
+            <div className="rounded-2xl bg-[#F1F1F1] p-5 text-sm text-slate-600">
+              <div className="font-semibold text-slate-950">Email</div>
+              <div className="mt-2">{organisation.primary_contact_email || "—"}</div>
+            </div>
+
+            <div className="rounded-2xl bg-[#F1F1F1] p-5 text-sm text-slate-600">
+              <div className="font-semibold text-slate-950">Phone</div>
+              <div className="mt-2">{organisation.primary_contact_phone || "—"}</div>
+            </div>
+          </div>
+        </section>
+
+        <div className="mt-8 grid gap-8 xl:grid-cols-2">
+          <section className="rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
+            <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
+              Recent Documents
+            </div>
+
+            <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">
+              Latest uploaded records
+            </h2>
+
+            <div className="mt-8 space-y-4">
+              {recentDocuments && recentDocuments.length > 0 ? (
+                recentDocuments.map((doc) => (
+                  <a
+                    key={doc.id}
+                    href={`/portal/documents/${doc.id}`}
+                    className="block rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] p-5 transition hover:border-[#073D7F]"
+                  >
+                    <div className="font-semibold text-[#073D7F]">
+                      {doc.file_name}
+                    </div>
+
+                    <div className="mt-2 text-sm text-slate-600">
+                      {doc.module} · {doc.status}
+                    </div>
+                  </a>
+                ))
+              ) : (
+                <div className="rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] p-5 text-sm text-slate-500">
+                  No documents uploaded yet.
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
+            <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
+              Engagements
+            </div>
+
+            <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">
+              Engagement workspace foundation
+            </h2>
+
+            <div className="mt-8 space-y-4">
+              {engagements && engagements.length > 0 ? (
+                engagements.map((engagement) => (
+                  <div
+                    key={engagement.id}
+                    className="rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] p-5"
+                  >
+                    <div className="font-semibold text-slate-950">
+                      {engagement.name}
+                    </div>
+
+                    <div className="mt-2 text-sm text-slate-600">
+                      {engagement.engagement_type} ·{" "}
+                      {formatStatus(engagement.status)}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] p-5 text-sm text-slate-500">
+                  No engagements created yet.
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+
+        <section className="mt-8 rounded-[2rem] bg-[#073D7F] p-8 text-white">
+          <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr]">
+            <div>
+              <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
+                Long-Term Architecture
+              </div>
+
+              <h2 className="mt-4 text-3xl font-semibold tracking-tight">
+                This organisation record will become the centre of client work.
+              </h2>
+
+              <p className="mt-4 max-w-3xl text-base leading-8 text-blue-100">
+                Documents, engagements, accounting records, tax, payroll,
+                compliance, financial reporting, and advisory workflows will
+                connect through this organisation model.
+              </p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              {[
+                "Documents",
+                "Engagements",
+                "Accounting",
+                "Financial Reporting",
+                "Tax",
+                "Payroll",
+                "Compliance",
+                "Advisory",
+              ].map((item) => (
+                <div
+                  key={item}
+                  className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm font-semibold text-blue-100"
+                >
+                  <ShieldCheck className="mb-3 h-5 w-5 text-[#6491DE]" />
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {organisation.legacy_client_id ? (
+          <div className="mt-8 flex flex-wrap gap-4">
+            <a
+              href={`/portal/clients/${organisation.legacy_client_id}`}
+              className="rounded-full border border-[#D9E3F4] bg-white px-6 py-3 text-sm font-semibold text-[#073D7F]"
+            >
+              Open Legacy Client Workspace
+            </a>
+
+            <a
+              href={`/portal/clients/${organisation.legacy_client_id}/upload`}
+              className="rounded-full bg-[#073D7F] px-6 py-3 text-sm font-semibold text-white"
+            >
+              Upload Document
+            </a>
+          </div>
+        ) : null}
+      </section>
+    </main>
+  );
+}
