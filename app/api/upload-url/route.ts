@@ -1,25 +1,15 @@
 export const runtime = "nodejs";
 
+import { randomUUID } from "crypto";
 import { storage, bucketName } from "@/lib/storage/gcs";
 import { createClient } from "@/utils/supabase/server";
 
-const moduleMap: Record<string, string> = {
-  kyc: "KYC",
-  sales: "SALES",
-  purchases: "PURCHASES",
-  bank: "BANK",
-  payroll: "PAYROLL",
-};
+function sanitizeFileName(name: string) {
+  return name.replace(/[^a-zA-Z0-9._-]/g, "_");
+}
 
 export async function POST(request: Request) {
   try {
-    if (!bucketName) {
-      return Response.json(
-        { error: "GCS_BUCKET_NAME is missing." },
-        { status: 500 }
-      );
-    }
-
     const supabase = await createClient();
 
     const {
@@ -30,41 +20,146 @@ export async function POST(request: Request) {
       return Response.json({ error: "Not authenticated." }, { status: 401 });
     }
 
+    if (!bucketName) {
+      return Response.json(
+        { error: "GCS bucket name is not configured." },
+        { status: 500 }
+      );
+    }
+
     const formData = await request.formData();
 
-    const file = formData.get("file") as File | null;
-    const clientId = formData.get("clientId") as string | null;
-    const module = formData.get("module") as string | null;
+    const file = formData.get("file");
 
-    if (!file || !clientId || !module) {
+    const clientId =
+      formData.get("client_id")?.toString() ||
+      formData.get("clientId")?.toString() ||
+      "";
+
+    const organisationId =
+      formData.get("organisation_id")?.toString() ||
+      formData.get("organisationId")?.toString() ||
+      "";
+
+    const engagementId =
+      formData.get("engagement_id")?.toString() ||
+      formData.get("engagementId")?.toString() ||
+      "";
+
+    const documentCategoryId =
+      formData.get("document_category_id")?.toString() ||
+      formData.get("documentCategoryId")?.toString() ||
+      "";
+
+    const module = formData.get("module")?.toString() || "Other";
+
+    const documentType =
+      formData.get("document_type")?.toString() ||
+      formData.get("documentType")?.toString() ||
+      module;
+
+    if (!(file instanceof File)) {
+      return Response.json({ error: "File is required." }, { status: 400 });
+    }
+
+    if (!clientId) {
       return Response.json(
-        { error: "file, clientId, and module are required." },
+        { error: "Client ID is required for document upload." },
         { status: 400 }
       );
     }
 
-    const dbModule = moduleMap[module];
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
 
-    if (!dbModule) {
-      return Response.json({ error: "Invalid document module." }, { status: 400 });
+    if (
+      !profile ||
+      !["SUPER_ADMIN", "ADMIN", "STAFF", "CLIENT"].includes(profile.role)
+    ) {
+      return Response.json({ error: "Access denied." }, { status: 403 });
     }
 
-    const safeFileName = file.name
-      .replace(/[^a-zA-Z0-9._-]/g, "-")
-      .replace(/-+/g, "-")
-      .toLowerCase();
+    const { data: client, error: clientError } = await supabase
+      .from("clients")
+      .select("id, name, organisation_id")
+      .eq("id", clientId)
+      .single();
 
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    if (clientError || !client) {
+      return Response.json({ error: "Client not found." }, { status: 404 });
+    }
 
-    const objectPath = `clients/${clientId}/${module}/${timestamp}-${safeFileName}`;
+    let finalOrganisationId = organisationId || client.organisation_id || null;
+    let finalEngagementId = engagementId || null;
+    let finalCategoryId = documentCategoryId || null;
+    let finalModule = module;
 
-    const bytes = Buffer.from(await file.arrayBuffer());
+    if (finalEngagementId) {
+      const { data: engagement, error: engagementError } = await supabase
+        .from("engagements")
+        .select("id, organisation_id")
+        .eq("id", finalEngagementId)
+        .single();
 
-    await storage.bucket(bucketName).file(objectPath).save(bytes, {
-      contentType: file.type || "application/octet-stream",
+      if (engagementError || !engagement) {
+        return Response.json(
+          { error: "Engagement not found." },
+          { status: 404 }
+        );
+      }
+
+      finalOrganisationId = engagement.organisation_id;
+    }
+
+    if (documentCategoryId) {
+      const { data: category, error: categoryError } = await supabase
+        .from("document_categories")
+        .select("id, name")
+        .eq("id", documentCategoryId)
+        .single();
+
+      if (categoryError || !category) {
+        return Response.json(
+          { error: "Invalid document category selected." },
+          { status: 400 }
+        );
+      }
+
+      finalCategoryId = category.id;
+      finalModule = category.name;
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    const safeFileName = sanitizeFileName(file.name);
+
+    const storagePath = [
+      "clients",
+      clientId,
+      finalEngagementId ? `engagements/${finalEngagementId}` : "documents",
+      `${randomUUID()}-${safeFileName}`,
+    ].join("/");
+
+    const bucket = storage.bucket(bucketName);
+    const gcsFile = bucket.file(storagePath);
+
+    await gcsFile.save(buffer, {
       resumable: false,
+      contentType: file.type || "application/octet-stream",
       metadata: {
-        cacheControl: "no-store",
+        metadata: {
+          uploadedBy: user.id,
+          clientId,
+          organisationId: finalOrganisationId || "",
+          engagementId: finalEngagementId || "",
+          documentCategoryId: finalCategoryId || "",
+          module: finalModule,
+          documentType,
+        },
       },
     });
 
@@ -72,73 +167,70 @@ export async function POST(request: Request) {
       .from("documents")
       .insert({
         client_id: clientId,
-        uploaded_by: user.id,
-        module: dbModule,
-        status: "UPLOADED",
+        organisation_id: finalOrganisationId,
+        engagement_id: finalEngagementId,
+        document_category_id: finalCategoryId,
+        module: finalModule,
+        document_type: documentType,
         file_name: file.name,
-        storage_path: objectPath,
-        content_type: file.type || "application/octet-stream",
-        extraction_status: "NOT_STARTED",
-        uploader_review_status: "PENDING",
+        file_path: storagePath,
+        storage_path: storagePath,
+        file_size: file.size,
+        mime_type: file.type || "application/octet-stream",
+        status: "UPLOADED",
+        uploaded_by: user.id,
       })
       .select("id")
       .single();
 
-    if (documentError) {
+    if (documentError || !documentRecord) {
       return Response.json(
         {
-          error:
-            "File uploaded to storage, but database record failed: " +
-            documentError.message,
+          error: documentError?.message || "Unable to save document record.",
         },
         { status: 500 }
       );
     }
-        const { error: reviewError } = await supabase
-      .from("document_reviews")
-     .insert({
-        document_id: documentRecord.id,
-        client_id: clientId,
-        status: "PENDING_REVIEW",
-        created_by: user.id,
-      });
 
-    if (reviewError) {
-      return Response.json(
-        {
-          error:
-            "File uploaded and document saved, but review record failed: " +
-            reviewError.message,
-        },
-        { status: 500 }
-      );
-   }
+    await supabase.from("document_reviews").insert({
+      document_id: documentRecord.id,
+      client_id: clientId,
+      organisation_id: finalOrganisationId,
+      engagement_id: finalEngagementId,
+      document_category_id: finalCategoryId,
+      status: "PENDING_REVIEW",
+      created_by: user.id,
+    });
 
     await supabase.from("audit_logs").insert({
-      client_id: clientId,
-      document_id: documentRecord.id,
       user_id: user.id,
+      client_id: clientId,
+      organisation_id: finalOrganisationId,
+      engagement_id: finalEngagementId,
       action: "DOCUMENT_UPLOADED",
       details: {
+        document_id: documentRecord.id,
         file_name: file.name,
-        storage_path: objectPath,
-        module: dbModule,
-        content_type: file.type || "application/octet-stream",
+        file_path: storagePath,
+        storage_path: storagePath,
+        module: finalModule,
+        document_type: documentType,
+        document_category_id: finalCategoryId,
+        client_name: client.name,
       },
     });
 
     return Response.json({
       success: true,
       documentId: documentRecord.id,
-      objectPath,
-      fileName: file.name,
-      contentType: file.type || "application/octet-stream",
+      filePath: storagePath,
+      storagePath,
     });
   } catch (error) {
     return Response.json(
       {
         error:
-          error instanceof Error ? error.message : "Unable to upload file.",
+          error instanceof Error ? error.message : "Unable to upload document.",
       },
       { status: 500 }
     );

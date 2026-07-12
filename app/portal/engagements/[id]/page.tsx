@@ -85,6 +85,12 @@ export default async function EngagementDetailPage({
   if (!engagement) {
     redirect("/portal/organisations");
   }
+  const { data: engagementDocuments } = await supabase
+    .from("documents")
+    .select("id, file_name, module, document_type, status, created_at")
+    .eq("engagement_id", id)
+    .order("created_at", { ascending: false })
+    .limit(8);
 
   const organisation = Array.isArray(engagement.organisations)
     ? engagement.organisations[0]
@@ -261,6 +267,55 @@ export default async function EngagementDetailPage({
           </div>
         </section>
 
+        <section className="mt-8 rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
+                Engagement Documents
+              </div>
+        
+              <h2 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950">
+                Source documents linked to this engagement
+              </h2>
+        
+              <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
+                Upload and review source documents that support this engagement&apos;s
+                working papers, accounting records, reporting, tax, payroll, compliance,
+                or advisory deliverables.
+              </p>
+            </div>
+        
+            <a
+              href={`/portal/engagements/${engagement.id}/upload`}
+              className="inline-flex rounded-full bg-[#073D7F] px-6 py-3 text-sm font-semibold text-white"
+            >
+              Upload Document
+            </a>
+          </div>
+                
+          <div className="mt-8 space-y-4">
+            {engagementDocuments && engagementDocuments.length > 0 ? (
+              engagementDocuments.map((doc) => (
+                <a
+                  key={doc.id}
+                  href={`/portal/documents/${doc.id}`}
+                  className="block rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] p-5 transition hover:border-[#073D7F]"
+                >
+                  <div className="font-semibold text-[#073D7F]">{doc.file_name}</div>
+        
+                  <div className="mt-2 text-sm text-slate-600">
+                    {doc.module || "General"} · {doc.document_type || "Document"} ·{" "}
+                    {doc.status || "Uploaded"}
+                  </div>
+                </a>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] p-5 text-sm text-slate-500">
+                No documents have been linked to this engagement yet.
+              </div>
+            )}
+          </div>
+        </section>
         <section className="mt-8 rounded-[2rem] bg-[#073D7F] p-8 text-white">
           <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
             Next Platform Layer
