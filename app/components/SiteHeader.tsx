@@ -15,6 +15,7 @@ export default function SiteHeader() {
       { key: "/", label: "Home" },
       { key: "/about", label: "About" },
       { key: "/services", label: "Services" },
+      { key: "/pricing", label: "Pricing" },
       { key: "/industries", label: "Industries" },
       { key: "/insights", label: "Insights" },
       { key: "/career", label: "Career" },

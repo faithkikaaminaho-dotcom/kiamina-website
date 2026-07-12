@@ -136,6 +136,13 @@ export default function JurisdictionSelector() {
   const handleSelect = (code: string) => {
     setSelectedCode(code);
     localStorage.setItem("kiamina_jurisdiction", code);
+  
+    window.dispatchEvent(
+      new CustomEvent("kiamina-jurisdiction-change", {
+        detail: { code },
+      })
+    );
+  
     setOpen(false);
   };
 
