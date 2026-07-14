@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
+import QuickEngagementForm from "./QuickEngagementForm";
 import {
   ArrowLeft,
   Archive,
@@ -320,17 +321,23 @@ export default async function OrganisationDetailPage({
           <div className="mt-6 grid gap-4 md:grid-cols-3">
             <div className="rounded-2xl bg-[#F1F1F1] p-5 text-sm text-slate-600">
               <div className="font-semibold text-slate-950">Name</div>
-              <div className="mt-2">{organisation.primary_contact_name || "—"}</div>
+              <div className="mt-2">
+                {organisation.primary_contact_name || "—"}
+              </div>
             </div>
 
             <div className="rounded-2xl bg-[#F1F1F1] p-5 text-sm text-slate-600">
               <div className="font-semibold text-slate-950">Email</div>
-              <div className="mt-2">{organisation.primary_contact_email || "—"}</div>
+              <div className="mt-2">
+                {organisation.primary_contact_email || "—"}
+              </div>
             </div>
 
             <div className="rounded-2xl bg-[#F1F1F1] p-5 text-sm text-slate-600">
               <div className="font-semibold text-slate-950">Phone</div>
-              <div className="mt-2">{organisation.primary_contact_phone || "—"}</div>
+              <div className="mt-2">
+                {organisation.primary_contact_phone || "—"}
+              </div>
             </div>
           </div>
         </section>
@@ -376,13 +383,24 @@ export default async function OrganisationDetailPage({
             </div>
 
             <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">
-              Engagement workspace foundation
+              Create and manage engagement workspaces
             </h2>
+
+            <p className="mt-3 text-sm leading-7 text-slate-600">
+              Quickly set up a service engagement for this organisation, or use
+              the advanced setup flow when you need to configure a more detailed
+              engagement structure.
+            </p>
+
+            <div className="mt-6 rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-5">
+              <QuickEngagementForm organisationId={organisation.id} />
+            </div>
+
             <a
               href={`/portal/organisations/${organisation.id}/engagements/new`}
-              className="mt-5 inline-flex rounded-full bg-[#073D7F] px-5 py-3 text-sm font-semibold text-white"
+              className="mt-5 inline-flex rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
             >
-              Create Engagement
+              Advanced Engagement Setup
             </a>
 
             <div className="mt-8 space-y-4">
@@ -392,7 +410,7 @@ export default async function OrganisationDetailPage({
                     key={engagement.id}
                     href={`/portal/engagements/${engagement.id}`}
                     className="block rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] p-5 transition hover:border-[#073D7F]"
-                 >
+                  >
                     <div className="font-semibold text-slate-950">
                       {engagement.name}
                     </div>
