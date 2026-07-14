@@ -133,15 +133,56 @@ export default async function PortalPage() {
   ];
 
   const sidebarItems = [
-    "Dashboard",
-    "Clients",
-    "Documents",
-    "KYC",
-    "Approvals",
-    "Inquiries",
-    "Users",
-    "Audit Logs",
-    "Settings",
+    {
+      label: "Dashboard",
+      href: "/portal",
+    icon: LayoutDashboard,
+    },
+    {
+     label: "Inquiries",
+      href: "/portal/inquiries",
+      icon: MessageSquare,
+    },
+    {
+      label: "Clients",
+      href: "/portal/clients/new",
+      icon: Briefcase,
+    },
+    {
+      label: "Organisations",
+      href: "/portal/organisations",
+      icon: Building2,
+    },
+    {
+      label: "Operations",
+      href: "/portal/operations",
+      icon: CheckCircle,
+    },
+    {
+      label: "Documents",
+      href: "/portal/operations",
+      icon: FileText,
+    },
+    {
+      label: "People",
+      href: "/portal/people",
+      icon: Users,
+    },
+    {
+      label: "Master Data",
+      href: "/portal/settings/master-data",
+      icon: Database,
+    },
+    {
+      label: "Users",
+      href: "/portal/administration/users",
+      icon: UserCog,
+    },
+    {
+      label: "Settings",
+      href: "/portal/settings/master-data",
+      icon: ShieldCheck,
+    },
   ];
 
   return (
@@ -156,19 +197,24 @@ export default async function PortalPage() {
           </div>
 
           <nav className="mt-8 space-y-2">
-            {sidebarItems.map((item, index) => (
-              <div
-                key={item}
-                className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold ${
-                  index === 0
-                    ? "bg-[#073D7F] text-white"
-                    : "text-slate-600 hover:bg-[#F1F1F1] hover:text-[#073D7F]"
-                }`}
-              >
-                <LayoutDashboard className="h-4 w-4" />
-                {item}
-              </div>
-            ))}
+            {sidebarItems.map((item, index) => {
+              const Icon = item.icon;
+         
+              return (
+                <a
+                  key={item.label}
+                  href={item.href}
+                  className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold ${
+                    index === 0
+                      ? "bg-[#073D7F] text-white"
+                      : "text-slate-600 hover:bg-[#F1F1F1] hover:text-[#073D7F]"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.label}
+                </a>
+              );
+            })}
           </nav>
 
           <form action="/auth/signout" method="post" className="mt-8">
