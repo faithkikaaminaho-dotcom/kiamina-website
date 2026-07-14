@@ -13,7 +13,6 @@ import {
   Bell,
   CheckCircle,
   Clock,
-  LogOut,
   LayoutDashboard,
   Briefcase,
 } from "lucide-react";
@@ -144,39 +143,19 @@ export default async function PortalPage() {
       icon: MessageSquare,
     },
     {
-      label: "Clients",
-      href: "/portal/clients/new",
-      icon: Briefcase,
-    },
-    {
       label: "Organisations",
       href: "/portal/organisations",
       icon: Building2,
     },
-    {
+   {
       label: "Operations",
       href: "/portal/operations",
       icon: CheckCircle,
     },
     {
-      label: "Documents",
-      href: "/portal/operations",
-      icon: FileText,
-    },
-    {
       label: "People",
       href: "/portal/people",
       icon: Users,
-    },
-    {
-      label: "Master Data",
-      href: "/portal/settings/master-data",
-      icon: Database,
-    },
-    {
-      label: "Users",
-      href: "/portal/administration/users",
-      icon: UserCog,
     },
     {
       label: "Settings",
@@ -187,49 +166,8 @@ export default async function PortalPage() {
 
   return (
     <main className="min-h-screen bg-[#F8FAFC]">
-      <div className="mx-auto grid max-w-[1500px] gap-0 lg:grid-cols-[280px_1fr]">
-        <aside className="hidden min-h-screen border-r border-[#D9E3F4] bg-white px-5 py-6 lg:block">
-          <div className="rounded-[1.5rem] bg-[#073D7F] p-5 text-white">
-            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
-              Kiamina Portal
-            </div>
-            <div className="mt-3 text-lg font-semibold">Secure Workspace</div>
-          </div>
-
-          <nav className="mt-8 space-y-2">
-            {sidebarItems.map((item, index) => {
-              const Icon = item.icon;
-         
-              return (
-                <a
-                  key={item.label}
-                  href={item.href}
-                  className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold ${
-                    index === 0
-                      ? "bg-[#073D7F] text-white"
-                      : "text-slate-600 hover:bg-[#F1F1F1] hover:text-[#073D7F]"
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </a>
-              );
-            })}
-          </nav>
-
-          <form action="/auth/signout" method="post" className="mt-8">
-            <button
-              type="submit"
-              className="flex w-full items-center gap-3 rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-red-50 hover:text-red-700"
-            >
-              <LogOut className="h-4 w-4" />
-              Sign Out
-            </button>
-          </form>
-        </aside>
-
-        <section>
-          <header className="border-b border-[#D9E3F4] bg-white">
+      <section>
+        <header className="border-b border-[#D9E3F4] bg-white">
             <div className="flex flex-col gap-5 px-6 py-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
               <div>
                 <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
@@ -498,7 +436,6 @@ export default async function PortalPage() {
             </section>
           </div>
         </section>
-      </div>
     </main>
   );
 }
