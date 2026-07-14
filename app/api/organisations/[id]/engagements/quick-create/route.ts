@@ -29,11 +29,65 @@ function getEngagementType(serviceName: string) {
   if (value.includes("management reporting")) return "MANAGEMENT_REPORTING";
   if (value.includes("receivable") || value.includes("payable")) return "AR_AP";
   if (value.includes("cfo")) return "CFO_ADVISORY";
-  if (value.includes("modelling") || value.includes("modeling")) return "FINANCIAL_MODELLING";
+  if (value.includes("modelling") || value.includes("modeling")) {
+    return "FINANCIAL_MODELLING";
+  }
   if (value.includes("tax")) return "TAX_COMPLIANCE";
   if (value.includes("full service")) return "FULL_SERVICE";
 
   return "OTHER";
+}
+
+function getMissingColumnName(errorMessage: string) {
+  const match = errorMessage.match(/Could not find the '([^']+)' column/i);
+
+  if (!match?.[1]) {
+    return null;
+  }
+
+  return match[1];
+}
+
+async function insertWithSchemaRetry({
+  supabase,
+  table,
+  payload,
+  selectColumns = "id",
+}: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  table: string;
+  payload: Record<string, unknown>;
+  selectColumns?: string;
+}) {
+  let safePayload = { ...payload };
+  const removedColumns: string[] = [];
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const { data, error } = await supabase
+      .from(table)
+      .insert(safePayload)
+      .select(selectColumns)
+      .single();
+
+    if (!error && data) {
+      return {
+        data,
+        removedColumns,
+      };
+    }
+
+    const missingColumn = getMissingColumnName(error?.message || "");
+
+    if (missingColumn && missingColumn in safePayload) {
+      delete safePayload[missingColumn];
+      removedColumns.push(missingColumn);
+      continue;
+    }
+
+    throw new Error(error?.message || `Unable to insert into ${table}.`);
+  }
+
+  throw new Error(`Unable to insert into ${table} after schema retry.`);
 }
 
 export async function POST(request: Request, context: RouteContext) {
@@ -80,8 +134,8 @@ export async function POST(request: Request, context: RouteContext) {
         legal_name,
         trading_name,
         jurisdiction_code,
-        reporting_framework,
-        base_currency,
+        reporting_framework_code,
+        base_currency_code,
         legacy_client_id
       `
       )
@@ -90,14 +144,20 @@ export async function POST(request: Request, context: RouteContext) {
 
     if (organisationError || !organisation) {
       return Response.json(
-        { error: "Organisation not found." },
+        {
+          error:
+            organisationError?.message ||
+            "Organisation not found. Please open the organisation workspace again and retry.",
+        },
         { status: 404 }
       );
     }
 
+    const organisationName =
+      organisation.trading_name || organisation.legal_name || "Organisation";
+
     const finalEngagementName =
-      engagementName ||
-      `${serviceName} - ${organisation.trading_name || organisation.legal_name}`;
+      engagementName || `${serviceName} - ${organisationName}`;
 
     const engagementType = getEngagementType(serviceName || finalEngagementName);
 
@@ -106,34 +166,42 @@ export async function POST(request: Request, context: RouteContext) {
 
     const endDate = new Date(today);
     endDate.setMonth(endDate.getMonth() + 12);
+    const endDateText = endDate.toISOString().slice(0, 10);
 
-    const { data: engagement, error: engagementError } = await supabase
-      .from("engagements")
-      .insert({
-        organisation_id: organisation.id,
-        client_id: organisation.legacy_client_id,
-        name: finalEngagementName,
-        engagement_type: engagementType,
-        status: "ACTIVE",
-        start_date: startDate,
-        end_date: endDate.toISOString().slice(0, 10),
-        reporting_framework: organisation.reporting_framework,
-        currency: organisation.base_currency,
-        jurisdiction_code: organisation.jurisdiction_code,
-        created_by: user.id,
-      })
-      .select("id")
-      .single();
+    const engagementPayload = {
+      organisation_id: organisation.id,
+      client_id: organisation.legacy_client_id,
 
-    if (engagementError || !engagement) {
-      return Response.json(
-        {
-          error:
-            engagementError?.message || "Unable to create engagement.",
-        },
-        { status: 500 }
-      );
-    }
+      name: finalEngagementName,
+      engagement_type: engagementType,
+      type: engagementType,
+
+      status: "ACTIVE",
+
+      reporting_period_start: startDate,
+      reporting_period_end: endDateText,
+      start_date: startDate,
+      end_date: endDateText,
+
+      reporting_framework_code: organisation.reporting_framework_code,
+      reporting_framework: organisation.reporting_framework_code,
+
+      base_currency_code: organisation.base_currency_code,
+      currency: organisation.base_currency_code,
+
+      jurisdiction_code: organisation.jurisdiction_code,
+
+      created_by: user.id,
+    };
+
+    const engagementResult = await insertWithSchemaRetry({
+      supabase,
+      table: "engagements",
+      payload: engagementPayload,
+      selectColumns: "id",
+    });
+
+    const engagement = engagementResult.data as unknown as { id: string };
 
     try {
       await supabase.from("audit_logs").insert({
@@ -147,6 +215,7 @@ export async function POST(request: Request, context: RouteContext) {
           service_name: serviceName,
           engagement_name: finalEngagementName,
           engagement_type: engagementType,
+          removed_engagement_columns: engagementResult.removedColumns,
         },
       });
     } catch {
@@ -156,6 +225,7 @@ export async function POST(request: Request, context: RouteContext) {
     return Response.json({
       success: true,
       engagementId: engagement.id,
+      removedEngagementColumns: engagementResult.removedColumns,
     });
   } catch (error) {
     return Response.json(
