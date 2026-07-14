@@ -20,6 +20,16 @@ const internalRoles = [
   "OPERATIONS_ADMIN",
 ];
 
+type OrganisationRecord = {
+  id: string;
+  legal_name: string | null;
+  trading_name: string | null;
+  jurisdiction_code: string | null;
+  reporting_framework_code: string | null;
+  base_currency_code: string | null;
+  legacy_client_id: string | null;
+};
+
 function getEngagementType(serviceName: string) {
   const value = serviceName.toLowerCase();
 
@@ -29,9 +39,11 @@ function getEngagementType(serviceName: string) {
   if (value.includes("management reporting")) return "MANAGEMENT_REPORTING";
   if (value.includes("receivable") || value.includes("payable")) return "AR_AP";
   if (value.includes("cfo")) return "CFO_ADVISORY";
+
   if (value.includes("modelling") || value.includes("modeling")) {
     return "FINANCIAL_MODELLING";
   }
+
   if (value.includes("tax")) return "TAX_COMPLIANCE";
   if (value.includes("full service")) return "FULL_SERVICE";
 
@@ -90,9 +102,67 @@ async function insertWithSchemaRetry({
   throw new Error(`Unable to insert into ${table} after schema retry.`);
 }
 
+async function findOrganisationByIdOrClientId({
+  supabase,
+  id,
+}: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  id: string;
+}) {
+  const organisationColumns = `
+    id,
+    legal_name,
+    trading_name,
+    jurisdiction_code,
+    reporting_framework_code,
+    base_currency_code,
+    legacy_client_id
+  `;
+
+  const { data: directOrganisation } = await supabase
+    .from("organisations")
+    .select(organisationColumns)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (directOrganisation) {
+    return directOrganisation as OrganisationRecord;
+  }
+
+  const { data: client } = await supabase
+    .from("clients")
+    .select("id, organisation_id")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (client?.organisation_id) {
+    const { data: organisationFromClient } = await supabase
+      .from("organisations")
+      .select(organisationColumns)
+      .eq("id", client.organisation_id)
+      .maybeSingle();
+
+    if (organisationFromClient) {
+      return organisationFromClient as OrganisationRecord;
+    }
+  }
+
+  const { data: organisationFromLegacyClient } = await supabase
+    .from("organisations")
+    .select(organisationColumns)
+    .eq("legacy_client_id", id)
+    .maybeSingle();
+
+  if (organisationFromLegacyClient) {
+    return organisationFromLegacyClient as OrganisationRecord;
+  }
+
+  return null;
+}
+
 export async function POST(request: Request, context: RouteContext) {
   try {
-    const { id: organisationId } = await context.params;
+    const { id } = await context.params;
 
     const supabase = await createClient();
 
@@ -126,27 +196,15 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
-    const { data: organisation, error: organisationError } = await supabase
-      .from("organisations")
-      .select(
-        `
-        id,
-        legal_name,
-        trading_name,
-        jurisdiction_code,
-        reporting_framework_code,
-        base_currency_code,
-        legacy_client_id
-      `
-      )
-      .eq("id", organisationId)
-      .single();
+    const organisation = await findOrganisationByIdOrClientId({
+      supabase,
+      id,
+    });
 
-    if (organisationError || !organisation) {
+    if (!organisation) {
       return Response.json(
         {
           error:
-            organisationError?.message ||
             "Organisation not found. Please open the organisation workspace again and retry.",
         },
         { status: 404 }
