@@ -85,16 +85,34 @@ export default async function EngagementDetailPage({
   if (!engagement) {
     redirect("/portal/organisations");
   }
+
+  const organisation = Array.isArray(engagement.organisations)
+    ? engagement.organisations[0]
+    : engagement.organisations;
+
+  const { count: documentsCount } = await supabase
+    .from("documents")
+    .select("*", { count: "exact", head: true })
+    .eq("engagement_id", id);
+
+  const { count: pendingReviewCount } = await supabase
+    .from("document_reviews")
+    .select("*", { count: "exact", head: true })
+    .eq("engagement_id", id)
+    .eq("status", "PENDING_REVIEW");
+
+  const { count: approvedReviewCount } = await supabase
+    .from("document_reviews")
+    .select("*", { count: "exact", head: true })
+    .eq("engagement_id", id)
+    .eq("status", "APPROVED");
+
   const { data: engagementDocuments } = await supabase
     .from("documents")
     .select("id, file_name, module, document_type, status, created_at")
     .eq("engagement_id", id)
     .order("created_at", { ascending: false })
     .limit(8);
-
-  const organisation = Array.isArray(engagement.organisations)
-    ? engagement.organisations[0]
-    : engagement.organisations;
 
   const workspaceModules = [
     {
@@ -132,6 +150,29 @@ export default async function EngagementDetailPage({
       description:
         "Track review status, approval points, validation checks, and sign-off.",
       icon: ShieldCheck,
+    },
+  ];
+
+  const stats = [
+    {
+      label: "Linked Documents",
+      value: documentsCount ?? 0,
+      icon: FolderOpen,
+    },
+    {
+      label: "Pending Reviews",
+      value: pendingReviewCount ?? 0,
+      icon: ClipboardList,
+    },
+    {
+      label: "Approved Reviews",
+      value: approvedReviewCount ?? 0,
+      icon: CheckCircle,
+    },
+    {
+      label: "Engagement Status",
+      value: formatLabel(engagement.status),
+      icon: Briefcase,
     },
   ];
 
@@ -183,46 +224,116 @@ export default async function EngagementDetailPage({
 
       <section className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-white p-6 shadow-sm">
-            <Briefcase className="h-6 w-6 text-[#073D7F]" />
-            <div className="mt-5 text-sm font-medium text-slate-500">
-              Engagement Type
-            </div>
-            <div className="mt-2 text-lg font-semibold text-slate-950">
-              {formatLabel(engagement.engagement_type)}
-            </div>
-          </div>
+          {stats.map((stat) => {
+            const Icon = stat.icon;
 
-          <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-white p-6 shadow-sm">
-            <FileText className="h-6 w-6 text-[#073D7F]" />
-            <div className="mt-5 text-sm font-medium text-slate-500">
-              Reporting Framework
-            </div>
-            <div className="mt-2 text-lg font-semibold text-slate-950">
-              {formatLabel(engagement.reporting_framework_code)}
-            </div>
-          </div>
+            return (
+              <div
+                key={stat.label}
+                className="rounded-[1.5rem] border border-[#D9E3F4] bg-white p-6 shadow-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-medium text-slate-500">
+                    {stat.label}
+                  </div>
 
-          <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-white p-6 shadow-sm">
-            <Coins className="h-6 w-6 text-[#073D7F]" />
-            <div className="mt-5 text-sm font-medium text-slate-500">
-              Currency
-            </div>
-            <div className="mt-2 text-lg font-semibold text-slate-950">
-              {engagement.currency_code || "—"}
-            </div>
-          </div>
+                  <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-[#F1F1F1] text-[#073D7F]">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                </div>
 
-          <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-white p-6 shadow-sm">
-            <CheckCircle className="h-6 w-6 text-[#073D7F]" />
-            <div className="mt-5 text-sm font-medium text-slate-500">
-              Period
+                <div className="mt-5 text-2xl font-semibold text-slate-950">
+                  {stat.value}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-8 grid gap-8 xl:grid-cols-[0.85fr_1.15fr]">
+          <section className="rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
+            <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
+              Engagement Summary
             </div>
-            <div className="mt-2 text-lg font-semibold text-slate-950">
-              {engagement.reporting_period_start || "—"} to{" "}
-              {engagement.reporting_period_end || "—"}
+
+            <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">
+              Scope and reporting configuration
+            </h2>
+
+            <div className="mt-6 space-y-4 text-sm text-slate-600">
+              <p>
+                <span className="font-semibold text-slate-950">
+                  Engagement Type:
+                </span>{" "}
+                {formatLabel(engagement.engagement_type)}
+              </p>
+
+              <p>
+                <span className="font-semibold text-slate-950">
+                  Reporting Framework:
+                </span>{" "}
+                {formatLabel(engagement.reporting_framework_code)}
+              </p>
+
+              <p>
+                <span className="font-semibold text-slate-950">Currency:</span>{" "}
+                {engagement.currency_code || "—"}
+              </p>
+
+              <p>
+                <span className="font-semibold text-slate-950">
+                  Reporting Period:
+                </span>{" "}
+                {engagement.reporting_period_start || "—"} to{" "}
+                {engagement.reporting_period_end || "—"}
+              </p>
+
+              <p>
+                <span className="font-semibold text-slate-950">
+                  Jurisdiction:
+                </span>{" "}
+                {organisation?.jurisdiction_code || "—"}
+              </p>
             </div>
-          </div>
+          </section>
+
+          <section className="rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
+            <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
+              Quick Actions
+            </div>
+
+            <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">
+              Continue engagement work
+            </h2>
+
+            <p className="mt-4 text-sm leading-7 text-slate-600">
+              Use these actions to move from engagement setup into document
+              collection, review, and client work execution.
+            </p>
+
+            <div className="mt-6 flex flex-wrap gap-4">
+              <a
+                href={`/portal/engagements/${engagement.id}/upload`}
+                className="rounded-full bg-[#073D7F] px-6 py-3 text-sm font-semibold text-white"
+              >
+                Upload Document
+              </a>
+
+              <a
+                href={`/portal/organisations/${engagement.organisation_id}`}
+                className="rounded-full border border-[#D9E3F4] bg-white px-6 py-3 text-sm font-semibold text-[#073D7F]"
+              >
+                Open Organisation
+              </a>
+
+              <a
+                href="/portal/operations"
+                className="rounded-full border border-[#D9E3F4] bg-white px-6 py-3 text-sm font-semibold text-[#073D7F]"
+              >
+                Review Queue
+              </a>
+            </div>
+          </section>
         </div>
 
         <section className="mt-8 rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
@@ -273,18 +384,18 @@ export default async function EngagementDetailPage({
               <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
                 Engagement Documents
               </div>
-        
+
               <h2 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950">
                 Source documents linked to this engagement
               </h2>
-        
+
               <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
-                Upload and review source documents that support this engagement&apos;s
-                working papers, accounting records, reporting, tax, payroll, compliance,
-                or advisory deliverables.
+                Upload and review source documents that support this
+                engagement&apos;s working papers, accounting records, reporting,
+                tax, payroll, compliance, or advisory deliverables.
               </p>
             </div>
-        
+
             <a
               href={`/portal/engagements/${engagement.id}/upload`}
               className="inline-flex rounded-full bg-[#073D7F] px-6 py-3 text-sm font-semibold text-white"
@@ -292,7 +403,7 @@ export default async function EngagementDetailPage({
               Upload Document
             </a>
           </div>
-                
+
           <div className="mt-8 space-y-4">
             {engagementDocuments && engagementDocuments.length > 0 ? (
               engagementDocuments.map((doc) => (
@@ -301,11 +412,14 @@ export default async function EngagementDetailPage({
                   href={`/portal/documents/${doc.id}`}
                   className="block rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] p-5 transition hover:border-[#073D7F]"
                 >
-                  <div className="font-semibold text-[#073D7F]">{doc.file_name}</div>
-        
+                  <div className="font-semibold text-[#073D7F]">
+                    {doc.file_name}
+                  </div>
+
                   <div className="mt-2 text-sm text-slate-600">
-                    {doc.module || "General"} · {doc.document_type || "Document"} ·{" "}
-                    {doc.status || "Uploaded"}
+                    {doc.module || "General"} ·{" "}
+                    {doc.document_type || "Document"} ·{" "}
+                    {formatLabel(doc.status)}
                   </div>
                 </a>
               ))
@@ -316,6 +430,7 @@ export default async function EngagementDetailPage({
             )}
           </div>
         </section>
+
         <section className="mt-8 rounded-[2rem] bg-[#073D7F] p-8 text-white">
           <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
             Next Platform Layer
