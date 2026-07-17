@@ -11,6 +11,40 @@ import {
 
 export const dynamic = "force-dynamic";
 
+function inferMimeType(fileName?: string | null, mimeType?: string | null) {
+  if (mimeType) return mimeType;
+
+  const name = fileName?.toLowerCase() || "";
+
+  if (name.endsWith(".pdf")) return "application/pdf";
+  if (name.endsWith(".png")) return "image/png";
+  if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg";
+  if (name.endsWith(".webp")) return "image/webp";
+  if (name.endsWith(".gif")) return "image/gif";
+  if (name.endsWith(".txt")) return "text/plain";
+  if (name.endsWith(".csv")) return "text/csv";
+
+  if (name.endsWith(".doc")) return "application/msword";
+  if (name.endsWith(".docx")) {
+    return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  }
+
+  if (name.endsWith(".xls")) return "application/vnd.ms-excel";
+  if (name.endsWith(".xlsx")) {
+    return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  }
+
+  return "application/octet-stream";
+}
+
+function canPreviewInline(mimeType: string) {
+  return (
+    mimeType === "application/pdf" ||
+    mimeType.startsWith("image/") ||
+    mimeType.startsWith("text/")
+  );
+}
+
 export default async function DocumentDetailPage({
   params,
 }: {
@@ -31,7 +65,20 @@ export default async function DocumentDetailPage({
   const { data: document } = await supabase
     .from("documents")
     .select(
-      "id, client_id, file_name, module, status, storage_path, content_type, created_at, extraction_status, uploader_review_status"
+      `
+      id,
+      client_id,
+      file_name,
+      module,
+      status,
+      file_path,
+      storage_path,
+      mime_type,
+      content_type,
+      created_at,
+      extraction_status,
+      uploader_review_status
+    `
     )
     .eq("id", id)
     .single();
@@ -53,9 +100,15 @@ export default async function DocumentDetailPage({
     .order("created_at", { ascending: false })
     .limit(8);
 
-  const isPreviewable =
-    document.content_type?.startsWith("image/") ||
-    document.content_type === "application/pdf";
+  const previewMimeType = inferMimeType(
+    document.file_name,
+    document.mime_type || document.content_type
+  );
+
+  const previewUrl = `/api/documents/${document.id}/preview`;
+  const downloadUrl = `/api/documents/${document.id}/download`;
+
+  const isPreviewable = canPreviewInline(previewMimeType);
 
   return (
     <main className="min-h-screen bg-[#F8FAFC]">
@@ -121,21 +174,21 @@ export default async function DocumentDetailPage({
                 <span className="font-semibold text-slate-950">
                   Content Type:
                 </span>{" "}
-                {document.content_type || "—"}
+                {previewMimeType || "—"}
               </p>
 
               <p>
                 <span className="font-semibold text-slate-950">
                   Extraction:
                 </span>{" "}
-                {document.extraction_status}
+                {document.extraction_status || "—"}
               </p>
 
               <p>
                 <span className="font-semibold text-slate-950">
                   Uploader Review:
                 </span>{" "}
-                {document.uploader_review_status}
+                {document.uploader_review_status || "—"}
               </p>
 
               <p>
@@ -147,7 +200,7 @@ export default async function DocumentDetailPage({
             </div>
 
             <a
-              href={`/api/documents/${document.id}/download`}
+              href={downloadUrl}
               className="mt-8 inline-flex items-center gap-2 rounded-full bg-[#073D7F] px-6 py-3 text-sm font-semibold text-white"
             >
               <Download className="h-4 w-4" />
@@ -166,23 +219,34 @@ export default async function DocumentDetailPage({
 
             <div className="mt-8 overflow-hidden rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC]">
               {isPreviewable ? (
-                document.content_type === "application/pdf" ? (
-                  <iframe
-                    src={`/api/documents/${document.id}/preview`}
-                    className="h-[640px] w-full"
-                    title={document.file_name}
-                  />
+                previewMimeType.startsWith("image/") ? (
+                  <div className="flex min-h-[520px] items-center justify-center bg-white p-6">
+                    <img
+                      src={previewUrl}
+                      alt={document.file_name || "Document preview"}
+                      className="max-h-[720px] max-w-full rounded-xl object-contain"
+                    />
+                  </div>
                 ) : (
-                  <img
-                    src={`/api/documents/${document.id}/preview`}
-                    alt={document.file_name}
-                    className="max-h-[640px] w-full object-contain"
+                  <iframe
+                    src={previewUrl}
+                    className="h-[720px] w-full bg-white"
+                    title={document.file_name || "Document preview"}
                   />
                 )
               ) : (
                 <div className="p-8 text-sm leading-7 text-slate-600">
-                  This file type is best handled by secure download. Preview can be added
-                  later for supported document formats.
+                  <p>
+                    This file type cannot be previewed directly in the browser
+                    yet. Use secure download to open it on your device.
+                  </p>
+
+                  <a
+                    href={downloadUrl}
+                    className="mt-5 inline-flex rounded-full bg-[#073D7F] px-5 py-3 text-sm font-semibold text-white"
+                  >
+                    Download Document
+                  </a>
                 </div>
               )}
             </div>
@@ -217,6 +281,7 @@ export default async function DocumentDetailPage({
                     <Clock className="h-4 w-4 text-[#073D7F]" />
                     {log.action}
                   </div>
+
                   <div className="mt-2">
                     {log.created_at
                       ? new Date(log.created_at).toLocaleString()
