@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 
 import { randomUUID } from "crypto";
-import { storage, bucketName } from "@/lib/storage/gcs";
+import { bucketName, uploadBufferToGcs } from "@/lib/storage/gcs";
 import { createClient } from "@/utils/supabase/server";
 
 function sanitizeFileName(name: string) {
@@ -144,24 +144,20 @@ export async function POST(request: Request) {
       `${randomUUID()}-${safeFileName}`,
     ].join("/");
 
-    const bucket = storage.bucket(bucketName);
-    const gcsFile = bucket.file(storagePath);
-
-    await gcsFile.save(buffer, {
-      resumable: false,
-      contentType: file.type || "application/octet-stream",
-      metadata: {
-        metadata: {
-          uploadedBy: user.id,
-          clientId,
-          organisationId: finalOrganisationId || "",
-          engagementId: finalEngagementId || "",
-          documentCategoryId: finalCategoryId || "",
-          module: finalModule,
-          documentType,
-        },
-      },
-    });
+    await uploadBufferToGcs({
+  storagePath,
+  buffer,
+  contentType: file.type || "application/octet-stream",
+  metadata: {
+    uploadedBy: user.id,
+    clientId,
+    organisationId: finalOrganisationId || "",
+    engagementId: finalEngagementId || "",
+    documentCategoryId: finalCategoryId || "",
+    module: finalModule,
+    documentType,
+  },
+});
 
     const { data: documentRecord, error: documentError } = await supabase
       .from("documents")

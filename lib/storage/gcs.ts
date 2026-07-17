@@ -1,4 +1,3 @@
-import { Storage } from "@google-cloud/storage";
 import { ExternalAccountClient, GoogleAuth } from "google-auth-library";
 import { getVercelOidcToken } from "@vercel/oidc";
 
@@ -13,13 +12,13 @@ function getRequiredEnv(name: string) {
   const value = process.env[name];
 
   if (!value) {
-    throw new Error(`${name} is required for Google Cloud OIDC authentication.`);
+    throw new Error(`${name} is required for Google Cloud authentication.`);
   }
 
   return value;
 }
 
-function createVercelGoogleAuth() {
+function createVercelAuthClient() {
   const gcpProjectNumber = getRequiredEnv("GCP_PROJECT_NUMBER");
   const workloadIdentityPoolId = getRequiredEnv(
     "GCP_WORKLOAD_IDENTITY_POOL_ID"
@@ -41,40 +40,143 @@ function createVercelGoogleAuth() {
   });
 
   if (!authClient) {
-    throw new Error("Unable to create Google external account auth client.");
+    throw new Error("Unable to create Vercel OIDC auth client.");
   }
 
-  return new GoogleAuth({
-    projectId,
-    authClient,
-    scopes: ["https://www.googleapis.com/auth/cloud-platform"],
-  });
+  return authClient;
 }
 
-function createStorageClient() {
+async function getGoogleAccessToken() {
   if (!projectId) {
     throw new Error("GCP_PROJECT_ID is required.");
   }
 
-  if (!bucketName) {
-    throw new Error("GCS_BUCKET_NAME is required.");
-  }
-
   if (isVercelRuntime()) {
-    const auth = createVercelGoogleAuth();
+    const authClient = createVercelAuthClient();
+    const tokenResponse = await authClient.getAccessToken();
 
-    return new Storage({
-      projectId,
-      auth,
-    } as any);
+    const token =
+      typeof tokenResponse === "string" ? tokenResponse : tokenResponse?.token;
+
+    if (!token) {
+      throw new Error("Unable to retrieve Google access token from Vercel OIDC.");
+    }
+
+    return token;
   }
 
-  return new Storage({
+  const auth = new GoogleAuth({
     projectId,
+    scopes: ["https://www.googleapis.com/auth/cloud-platform"],
     keyFilename:
       process.env.GOOGLE_APPLICATION_CREDENTIALS ||
       "C:/Users/HP/AppData/Roaming/gcloud/application_default_credentials.json",
   });
+
+  const client = await auth.getClient();
+  const tokenResponse = await client.getAccessToken();
+
+  const token =
+    typeof tokenResponse === "string" ? tokenResponse : tokenResponse?.token;
+
+  if (!token) {
+    throw new Error("Unable to retrieve local Google access token.");
+  }
+
+  return token;
 }
 
-export const storage = createStorageClient();
+export async function uploadBufferToGcs({
+  storagePath,
+  buffer,
+  contentType,
+  metadata,
+}: {
+  storagePath: string;
+  buffer: Buffer;
+  contentType: string;
+  metadata?: Record<string, string>;
+}) {
+  if (!bucketName) {
+    throw new Error("GCS_BUCKET_NAME is required.");
+  }
+
+  const accessToken = await getGoogleAccessToken();
+  const boundary = `kiamina-${Date.now()}`;
+
+  const objectMetadata = {
+    name: storagePath,
+    contentType,
+    metadata: metadata || {},
+  };
+
+  const body = Buffer.concat([
+    Buffer.from(
+      `--${boundary}\r\n` +
+        "Content-Type: application/json; charset=UTF-8\r\n\r\n" +
+        `${JSON.stringify(objectMetadata)}\r\n` +
+        `--${boundary}\r\n` +
+        `Content-Type: ${contentType}\r\n\r\n`
+    ),
+    buffer,
+    Buffer.from(`\r\n--${boundary}--`),
+  ]);
+
+  const response = await fetch(
+    `https://storage.googleapis.com/upload/storage/v1/b/${bucketName}/o?uploadType=multipart`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": `multipart/related; boundary=${boundary}`,
+      },
+      body,
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+
+    throw new Error(
+      `Google Cloud Storage upload failed: ${response.status} ${errorText}`
+    );
+  }
+
+  return response.json();
+}
+
+export async function downloadBufferFromGcs(storagePath: string) {
+  if (!bucketName) {
+    throw new Error("GCS_BUCKET_NAME is required.");
+  }
+
+  if (!storagePath) {
+    throw new Error("Storage path is required.");
+  }
+
+  const accessToken = await getGoogleAccessToken();
+
+  const response = await fetch(
+    `https://storage.googleapis.com/storage/v1/b/${bucketName}/o/${encodeURIComponent(
+      storagePath
+    )}?alt=media`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+
+    throw new Error(
+      `Google Cloud Storage download failed: ${response.status} ${errorText}`
+    );
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+
+  return Buffer.from(arrayBuffer);
+}
