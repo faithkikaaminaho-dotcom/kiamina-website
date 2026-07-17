@@ -10,8 +10,10 @@ import {
   Coins,
   FileText,
   Globe2,
+  Mail,
   MessageSquare,
   ShieldCheck,
+  UserRound,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +34,15 @@ function formatStatus(status?: string | null) {
   if (!status) return "—";
 
   return status
+    .split("_")
+    .join(" ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatAccessRole(role?: string | null) {
+  if (!role) return "—";
+
+  return role
     .split("_")
     .join(" ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -115,29 +126,71 @@ export default async function OrganisationDetailPage({
     .eq("organisation_id", id)
     .order("created_at", { ascending: false })
     .limit(6);
+    const { data: organisationUsers } = await supabase
+  .from("organisation_users")
+  .select("id, user_id, role, access_role, status, created_at")
+  .eq("organisation_id", id)
+  .order("created_at", { ascending: false });
+
+const assignedUserIds =
+  organisationUsers?.map((record) => record.user_id).filter(Boolean) || [];
+
+let assignedProfiles: {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  role: string | null;
+  status: string | null;
+}[] = [];
+
+if (assignedUserIds.length > 0) {
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, email, full_name, role, status")
+    .in("id", assignedUserIds);
+
+  assignedProfiles = profiles || [];
+}
+
+const assignedClientUsers =
+  organisationUsers?.map((record) => {
+    const profile = assignedProfiles.find(
+      (person) => person.id === record.user_id
+    );
+
+    return {
+      ...record,
+      profile,
+    };
+  }) || [];
 
   const stats = [
-    {
-      label: "Documents",
-      value: documentsCount ?? 0,
-      icon: FileText,
-    },
-    {
-      label: "Pending Reviews",
-      value: pendingReviewCount ?? 0,
-      icon: Clock,
-    },
-    {
-      label: "Approved Reviews",
-      value: approvedCount ?? 0,
-      icon: CheckCircle,
-    },
-    {
-      label: "Engagements",
-      value: engagementsCount ?? 0,
-      icon: Archive,
-    },
-  ];
+  {
+    label: "Documents",
+    value: documentsCount ?? 0,
+    icon: FileText,
+  },
+  {
+    label: "Pending Reviews",
+    value: pendingReviewCount ?? 0,
+    icon: Clock,
+  },
+  {
+    label: "Approved Reviews",
+    value: approvedCount ?? 0,
+    icon: CheckCircle,
+  },
+  {
+    label: "Engagements",
+    value: engagementsCount ?? 0,
+    icon: Archive,
+  },
+  {
+    label: "Client Users",
+    value: assignedClientUsers.length,
+    icon: UserRound,
+  },
+];
 
   const financialYearEnd =
     organisation.financial_year_end_month && organisation.financial_year_end_day
@@ -190,7 +243,7 @@ export default async function OrganisationDetailPage({
       </section>
 
       <section className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
           {stats.map((stat) => {
             const Icon = stat.icon;
 
@@ -343,6 +396,93 @@ export default async function OrganisationDetailPage({
         </section>
 
         <div className="mt-8 grid gap-8 xl:grid-cols-2">
+                  <section className="mt-8 overflow-hidden rounded-[2rem] border border-[#D9E3F4] bg-white shadow-sm">
+          <div className="flex flex-col gap-4 px-6 py-6 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
+                Client User Access
+              </div>
+
+              <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
+                Assigned client users
+              </h2>
+
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
+                These users are linked to this organisation and will later be
+                restricted to organisation-specific documents, engagements, and
+                client workflows.
+              </p>
+            </div>
+
+            <a
+              href="/portal/people"
+              className="inline-flex rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
+            >
+              Manage People Access
+            </a>
+          </div>
+
+          <div className="overflow-x-auto">
+            <div className="min-w-[850px]">
+              <div className="grid grid-cols-[1.4fr_1.7fr_1fr_1fr_0.9fr] bg-[#F1F1F1] px-5 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                <div>Name</div>
+                <div>Email</div>
+                <div>Access Role</div>
+                <div>Status</div>
+                <div>Profile</div>
+              </div>
+
+              <div className="divide-y divide-[#D9E3F4]">
+                {assignedClientUsers.length > 0 ? (
+                  assignedClientUsers.map((record) => (
+                    <div
+                      key={record.id}
+                      className="grid grid-cols-[1.4fr_1.7fr_1fr_1fr_0.9fr] px-5 py-4 text-sm text-slate-700"
+                    >
+                      <div>
+                        <div className="font-semibold text-slate-950">
+                          {record.profile?.full_name || "Unnamed Client User"}
+                        </div>
+
+                        <div className="mt-1 text-xs text-slate-500">
+                          {formatAccessRole(record.profile?.role || record.role)}
+                        </div>
+                      </div>
+
+                      <div className="flex min-w-0 items-center gap-2">
+                        <Mail className="h-4 w-4 shrink-0 text-slate-400" />
+                        <span className="break-all">
+                          {record.profile?.email || "—"}
+                        </span>
+                      </div>
+
+                      <div>{formatAccessRole(record.access_role)}</div>
+
+                      <div>
+                        <span className="rounded-full bg-[#F1F1F1] px-3 py-1 text-xs font-semibold text-[#073D7F]">
+                          {formatStatus(record.status)}
+                        </span>
+                      </div>
+
+                      <div>
+                        <a
+                          href={`/portal/people/${record.user_id}`}
+                          className="font-semibold text-[#073D7F] hover:underline"
+                        >
+                          Open
+                        </a>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-5 py-8 text-sm text-slate-500">
+                    No client users have been assigned to this organisation yet.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
           <section className="rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
             <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
               Recent Documents
