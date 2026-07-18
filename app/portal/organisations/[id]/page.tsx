@@ -164,6 +164,15 @@ const assignedClientUsers =
     };
   }) || [];
 
+const { data: chartAccounts } = await supabase
+  .from("chart_of_accounts")
+  .select(
+    "id, account_code, account_name, account_type, fs_section, fs_line_item, is_active"
+  )
+  .eq("organisation_id", id)
+  .order("account_code", { ascending: true })
+  .limit(8);
+
   const stats = [
   {
     label: "Documents",
@@ -569,6 +578,80 @@ const assignedClientUsers =
             </div>
           </section>
         </div>
+
+                <section className="mt-8 rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
+                Accounting System
+              </div>
+
+              <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">
+                Chart of accounts
+              </h2>
+
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
+                Organisation-specific account structure for transaction
+                categorisation, posting, trial balance, general ledger, IFRS
+                18-ready financial statement mapping, and management reporting.
+              </p>
+            </div>
+
+            <a
+              href={`/portal/organisations/${organisation.id}/chart-of-accounts/new`}
+              className="rounded-full bg-[#073D7F] px-6 py-3 text-center text-sm font-semibold text-white"
+            >
+              Add Account
+            </a>
+          </div>
+
+          <div className="mt-8 overflow-hidden rounded-[1.5rem] border border-[#D9E3F4]">
+            <div className="grid grid-cols-[0.7fr_1.5fr_1fr_1.2fr] bg-[#F1F1F1] px-5 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              <div>Code</div>
+              <div>Account</div>
+              <div>Type</div>
+              <div>FS Mapping</div>
+            </div>
+
+            <div className="divide-y divide-[#D9E3F4]">
+              {chartAccounts && chartAccounts.length > 0 ? (
+                chartAccounts.map((account) => (
+                  <div
+                    key={account.id}
+                    className="grid grid-cols-[0.7fr_1.5fr_1fr_1.2fr] px-5 py-4 text-sm text-slate-700"
+                  >
+                    <div className="font-semibold text-slate-950">
+                      {account.account_code}
+                    </div>
+
+                    <div>
+                      <div className="font-semibold text-slate-950">
+                        {account.account_name}
+                      </div>
+
+                      <div className="mt-1 text-xs text-slate-500">
+                        {account.is_active ? "Active" : "Inactive"}
+                      </div>
+                    </div>
+
+                    <div>{account.account_type?.split("_").join(" ")}</div>
+
+                    <div>
+                      {account.fs_line_item ||
+                        account.fs_section ||
+                        "Not mapped yet"}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="px-5 py-8 text-sm text-slate-500">
+                  No chart of accounts has been created for this organisation
+                  yet.
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
 
         <section className="mt-8 rounded-[2rem] bg-[#073D7F] p-8 text-white">
           <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr]">
