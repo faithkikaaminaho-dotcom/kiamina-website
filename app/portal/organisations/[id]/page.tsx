@@ -111,6 +111,36 @@ export default async function OrganisationDetailPage({
     .select("*", { count: "exact", head: true })
     .eq("organisation_id", id);
 
+    const { count: chartAccountsCount } = await supabase
+  .from("chart_of_accounts")
+  .select("*", { count: "exact", head: true })
+  .eq("organisation_id", id)
+  .eq("is_active", true);
+
+const { count: customersCount } = await supabase
+  .from("customers")
+  .select("*", { count: "exact", head: true })
+  .eq("organisation_id", id)
+  .eq("is_active", true);
+
+const { count: suppliersCount } = await supabase
+  .from("suppliers")
+  .select("*", { count: "exact", head: true })
+  .eq("organisation_id", id)
+  .eq("is_active", true);
+
+const { count: productsServicesCount } = await supabase
+  .from("products_services")
+  .select("*", { count: "exact", head: true })
+  .eq("organisation_id", id)
+  .eq("is_active", true);
+
+const { count: investorsCount } = await supabase
+  .from("investors")
+  .select("*", { count: "exact", head: true })
+  .eq("organisation_id", id)
+  .eq("is_active", true);
+
   const { data: recentDocuments } = await supabase
     .from("documents")
     .select("id, file_name, module, status, created_at, client_id")
@@ -173,6 +203,36 @@ const { data: chartAccounts } = await supabase
   .order("account_code", { ascending: true })
   .limit(8);
 
+  const { data: recentCustomers } = await supabase
+  .from("customers")
+  .select("id, customer_name, customer_type, email, is_active")
+  .eq("organisation_id", id)
+  .order("created_at", { ascending: false })
+  .limit(5);
+
+const { data: recentSuppliers } = await supabase
+  .from("suppliers")
+  .select("id, supplier_name, supplier_type, email, is_active")
+  .eq("organisation_id", id)
+  .order("created_at", { ascending: false })
+  .limit(5);
+
+const { data: recentProductsServices } = await supabase
+  .from("products_services")
+  .select("id, item_name, item_type, unit_price, currency_code, is_active")
+  .eq("organisation_id", id)
+  .order("created_at", { ascending: false })
+  .limit(5);
+
+const { data: recentInvestors } = await supabase
+  .from("investors")
+  .select(
+    "id, investor_name, investor_type, funding_type, committed_amount, currency_code, is_active"
+  )
+  .eq("organisation_id", id)
+  .order("created_at", { ascending: false })
+  .limit(5);
+
   const stats = [
   {
     label: "Documents",
@@ -199,6 +259,31 @@ const { data: chartAccounts } = await supabase
     value: assignedClientUsers.length,
     icon: UserRound,
   },
+  {
+  label: "Accounts",
+  value: chartAccountsCount ?? 0,
+  icon: Coins,
+},
+{
+  label: "Customers",
+  value: customersCount ?? 0,
+  icon: UserRound,
+},
+{
+  label: "Suppliers",
+  value: suppliersCount ?? 0,
+  icon: Archive,
+},
+{
+  label: "Products / Services",
+  value: productsServicesCount ?? 0,
+  icon: FileText,
+},
+{
+  label: "Funders",
+  value: investorsCount ?? 0,
+  icon: Building2,
+},
 ];
 
   const financialYearEnd =
@@ -649,6 +734,210 @@ const { data: chartAccounts } = await supabase
                   yet.
                 </div>
               )}
+            </div>
+          </div>
+        </section>
+
+                <section className="mt-8 rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
+                Accounting Master Data
+              </div>
+
+              <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">
+                Customers, suppliers, items, and funders
+              </h2>
+
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
+                Maintain the core master records needed for invoices, bills,
+                payments, receivables, payables, investor reporting, financing
+                analysis, and management reporting.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-8 grid gap-5 xl:grid-cols-4">
+            <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-6">
+              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[#6491DE]">
+                Customers
+              </div>
+
+              <div className="mt-4 text-3xl font-semibold text-slate-950">
+                {customersCount ?? 0}
+              </div>
+
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                Used for sales invoices, receipts, receivables, customer
+                statements, and sales analysis.
+              </p>
+
+              <a
+                href={`/portal/organisations/${organisation.id}/customers/new`}
+                className="mt-5 inline-flex rounded-full bg-[#073D7F] px-5 py-3 text-sm font-semibold text-white"
+              >
+                Add Customer
+              </a>
+
+              <div className="mt-6 space-y-3">
+                {recentCustomers && recentCustomers.length > 0 ? (
+                  recentCustomers.map((customer) => (
+                    <div
+                      key={customer.id}
+                      className="rounded-2xl border border-[#D9E3F4] bg-white p-4 text-sm"
+                    >
+                      <div className="font-semibold text-slate-950">
+                        {customer.customer_name}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        {formatStatus(customer.customer_type)} ·{" "}
+                        {customer.email || "No email"}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-[#D9E3F4] bg-white p-4 text-sm text-slate-500">
+                    No customers yet.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-6">
+              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[#6491DE]">
+                Suppliers
+              </div>
+
+              <div className="mt-4 text-3xl font-semibold text-slate-950">
+                {suppliersCount ?? 0}
+              </div>
+
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                Used for purchase bills, payments, payables, supplier
+                statements, and procurement analysis.
+              </p>
+
+              <a
+                href={`/portal/organisations/${organisation.id}/suppliers/new`}
+                className="mt-5 inline-flex rounded-full bg-[#073D7F] px-5 py-3 text-sm font-semibold text-white"
+              >
+                Add Supplier
+              </a>
+
+              <div className="mt-6 space-y-3">
+                {recentSuppliers && recentSuppliers.length > 0 ? (
+                  recentSuppliers.map((supplier) => (
+                    <div
+                      key={supplier.id}
+                      className="rounded-2xl border border-[#D9E3F4] bg-white p-4 text-sm"
+                    >
+                      <div className="font-semibold text-slate-950">
+                        {supplier.supplier_name}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        {formatStatus(supplier.supplier_type)} ·{" "}
+                        {supplier.email || "No email"}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-[#D9E3F4] bg-white p-4 text-sm text-slate-500">
+                    No suppliers yet.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-6">
+              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[#6491DE]">
+                Products / Services
+              </div>
+
+              <div className="mt-4 text-3xl font-semibold text-slate-950">
+                {productsServicesCount ?? 0}
+              </div>
+
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                Used for invoice lines, bill lines, revenue mapping, tax
+                treatment, and service/product reporting.
+              </p>
+
+              <a
+                href={`/portal/organisations/${organisation.id}/products-services/new`}
+                className="mt-5 inline-flex rounded-full bg-[#073D7F] px-5 py-3 text-sm font-semibold text-white"
+              >
+                Add Product / Service
+              </a>
+
+              <div className="mt-6 space-y-3">
+                {recentProductsServices && recentProductsServices.length > 0 ? (
+                  recentProductsServices.map((item) => (
+                    <div
+                      key={item.id}
+                      className="rounded-2xl border border-[#D9E3F4] bg-white p-4 text-sm"
+                    >
+                      <div className="font-semibold text-slate-950">
+                        {item.item_name}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        {formatStatus(item.item_type)} ·{" "}
+                        {item.currency_code || "—"}{" "}
+                        {item.unit_price ?? "No price"}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-[#D9E3F4] bg-white p-4 text-sm text-slate-500">
+                    No products or services yet.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-6">
+              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[#6491DE]">
+                Funders
+              </div>
+
+              <div className="mt-4 text-3xl font-semibold text-slate-950">
+                {investorsCount ?? 0}
+              </div>
+
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                Used for equity, loans, grants, donations, related-party
+                funding, debt schedules, and investor-grade reporting.
+              </p>
+
+              <a
+                href={`/portal/organisations/${organisation.id}/investors/new`}
+                className="mt-5 inline-flex rounded-full bg-[#073D7F] px-5 py-3 text-sm font-semibold text-white"
+              >
+                Add Funder
+              </a>
+
+              <div className="mt-6 space-y-3">
+                {recentInvestors && recentInvestors.length > 0 ? (
+                  recentInvestors.map((investor) => (
+                    <div
+                      key={investor.id}
+                      className="rounded-2xl border border-[#D9E3F4] bg-white p-4 text-sm"
+                    >
+                      <div className="font-semibold text-slate-950">
+                        {investor.investor_name}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        {formatStatus(investor.funding_type)} ·{" "}
+                        {investor.currency_code || "—"}{" "}
+                        {investor.committed_amount ?? "No amount"}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-[#D9E3F4] bg-white p-4 text-sm text-slate-500">
+                    No funders yet.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </section>
