@@ -141,6 +141,28 @@ const { count: investorsCount } = await supabase
   .eq("organisation_id", id)
   .eq("is_active", true);
 
+  const { count: salesInvoicesCount } = await supabase
+  .from("sales_invoices")
+  .select("*", { count: "exact", head: true })
+  .eq("organisation_id", id);
+
+const { count: draftSalesInvoicesCount } = await supabase
+  .from("sales_invoices")
+  .select("*", { count: "exact", head: true })
+  .eq("organisation_id", id)
+  .eq("status", "DRAFT");
+
+const { count: purchaseBillsCount } = await supabase
+  .from("purchase_bills")
+  .select("*", { count: "exact", head: true })
+  .eq("organisation_id", id);
+
+const { count: draftPurchaseBillsCount } = await supabase
+  .from("purchase_bills")
+  .select("*", { count: "exact", head: true })
+  .eq("organisation_id", id)
+  .eq("status", "DRAFT");
+
   const { data: recentDocuments } = await supabase
     .from("documents")
     .select("id, file_name, module, status, created_at, client_id")
@@ -233,6 +255,83 @@ const { data: recentInvestors } = await supabase
   .order("created_at", { ascending: false })
   .limit(5);
 
+  const { data: recentSalesInvoices } = await supabase
+  .from("sales_invoices")
+  .select(
+    "id, invoice_number, invoice_date, due_date, currency_code, total_amount, balance_due, status, customer_id"
+  )
+  .eq("organisation_id", id)
+  .order("created_at", { ascending: false })
+  .limit(5);
+
+const salesInvoiceCustomerIds =
+  recentSalesInvoices?.map((invoice) => invoice.customer_id).filter(Boolean) ||
+  [];
+
+let salesInvoiceCustomers: {
+  id: string;
+  customer_name: string | null;
+}[] = [];
+
+if (salesInvoiceCustomerIds.length > 0) {
+  const { data: customersForInvoices } = await supabase
+    .from("customers")
+    .select("id, customer_name")
+    .in("id", salesInvoiceCustomerIds);
+
+  salesInvoiceCustomers = customersForInvoices || [];
+}
+
+const recentSalesInvoicesWithCustomers =
+  recentSalesInvoices?.map((invoice) => {
+    const customer = salesInvoiceCustomers.find(
+      (record) => record.id === invoice.customer_id
+    );
+
+    return {
+      ...invoice,
+      customer,
+    };
+  }) || [];
+
+const { data: recentPurchaseBills } = await supabase
+  .from("purchase_bills")
+  .select(
+    "id, bill_number, supplier_invoice_number, bill_date, due_date, currency_code, total_amount, balance_due, status, supplier_id"
+  )
+  .eq("organisation_id", id)
+  .order("created_at", { ascending: false })
+  .limit(5);
+
+const purchaseBillSupplierIds =
+  recentPurchaseBills?.map((bill) => bill.supplier_id).filter(Boolean) || [];
+
+let purchaseBillSuppliers: {
+  id: string;
+  supplier_name: string | null;
+}[] = [];
+
+if (purchaseBillSupplierIds.length > 0) {
+  const { data: suppliersForBills } = await supabase
+    .from("suppliers")
+    .select("id, supplier_name")
+    .in("id", purchaseBillSupplierIds);
+
+  purchaseBillSuppliers = suppliersForBills || [];
+}
+
+const recentPurchaseBillsWithSuppliers =
+  recentPurchaseBills?.map((bill) => {
+    const supplier = purchaseBillSuppliers.find(
+      (record) => record.id === bill.supplier_id
+    );
+
+    return {
+      ...bill,
+      supplier,
+    };
+  }) || [];
+
   const stats = [
   {
     label: "Documents",
@@ -283,6 +382,16 @@ const { data: recentInvestors } = await supabase
   label: "Funders",
   value: investorsCount ?? 0,
   icon: Building2,
+},
+{
+  label: "Sales Invoices",
+  value: salesInvoicesCount ?? 0,
+  icon: FileText,
+},
+{
+  label: "Purchase Bills",
+  value: purchaseBillsCount ?? 0,
+  icon: Archive,
 },
 ];
 
@@ -935,6 +1044,183 @@ const { data: recentInvestors } = await supabase
                 ) : (
                   <div className="rounded-2xl border border-[#D9E3F4] bg-white p-4 text-sm text-slate-500">
                     No funders yet.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+
+                <section className="mt-8 rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
+                Transaction Workspace
+              </div>
+
+              <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">
+                Sales invoices and purchase bills
+              </h2>
+
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
+                Create and review draft invoices and bills before they are
+                posted to the ledger. These records support revenue capture,
+                expense capture, receivables, payables, reporting, and future
+                posting workflows.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <a
+                href={`/portal/organisations/${organisation.id}/sales-invoices/new`}
+                className="rounded-full bg-[#073D7F] px-6 py-3 text-center text-sm font-semibold text-white"
+              >
+                Create Sales Invoice
+              </a>
+
+              <a
+                href={`/portal/organisations/${organisation.id}/purchase-bills/new`}
+                className="rounded-full border border-[#D9E3F4] bg-white px-6 py-3 text-center text-sm font-semibold text-[#073D7F]"
+              >
+                Create Purchase Bill
+              </a>
+            </div>
+          </div>
+
+          <div className="mt-8 grid gap-5 md:grid-cols-4">
+            <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-6">
+              <div className="text-sm font-semibold text-slate-500">
+                Sales Invoices
+              </div>
+              <div className="mt-4 text-3xl font-semibold text-slate-950">
+                {salesInvoicesCount ?? 0}
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-6">
+              <div className="text-sm font-semibold text-slate-500">
+                Draft Sales Invoices
+              </div>
+              <div className="mt-4 text-3xl font-semibold text-slate-950">
+                {draftSalesInvoicesCount ?? 0}
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-6">
+              <div className="text-sm font-semibold text-slate-500">
+                Purchase Bills
+              </div>
+              <div className="mt-4 text-3xl font-semibold text-slate-950">
+                {purchaseBillsCount ?? 0}
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-6">
+              <div className="text-sm font-semibold text-slate-500">
+                Draft Purchase Bills
+              </div>
+              <div className="mt-4 text-3xl font-semibold text-slate-950">
+                {draftPurchaseBillsCount ?? 0}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8 grid gap-6 xl:grid-cols-2">
+            <div className="overflow-hidden rounded-[1.5rem] border border-[#D9E3F4]">
+              <div className="bg-[#F1F1F1] px-5 py-4">
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[#6491DE]">
+                  Recent Sales Invoices
+                </div>
+              </div>
+
+              <div className="divide-y divide-[#D9E3F4]">
+                {recentSalesInvoicesWithCustomers.length > 0 ? (
+                  recentSalesInvoicesWithCustomers.map((invoice) => (
+                    <div key={invoice.id} className="px-5 py-4 text-sm">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <div className="font-semibold text-slate-950">
+                            {invoice.invoice_number}
+                          </div>
+
+                          <div className="mt-1 text-xs text-slate-500">
+                            {invoice.customer?.customer_name ||
+                              "Customer not linked"}{" "}
+                            · {invoice.invoice_date || "No date"}
+                          </div>
+                        </div>
+
+                        <div className="text-left sm:text-right">
+                          <div className="font-semibold text-slate-950">
+                            {invoice.currency_code || "—"}{" "}
+                            {Number(invoice.total_amount || 0).toLocaleString()}
+                          </div>
+
+                          <div className="mt-1 text-xs text-slate-500">
+                            Balance: {invoice.currency_code || "—"}{" "}
+                            {Number(invoice.balance_due || 0).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 inline-flex rounded-full bg-[#F1F1F1] px-3 py-1 text-xs font-semibold text-[#073D7F]">
+                        {formatStatus(invoice.status)}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-5 py-8 text-sm text-slate-500">
+                    No sales invoices created yet.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-[1.5rem] border border-[#D9E3F4]">
+              <div className="bg-[#F1F1F1] px-5 py-4">
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[#6491DE]">
+                  Recent Purchase Bills
+                </div>
+              </div>
+
+              <div className="divide-y divide-[#D9E3F4]">
+                {recentPurchaseBillsWithSuppliers.length > 0 ? (
+                  recentPurchaseBillsWithSuppliers.map((bill) => (
+                    <div key={bill.id} className="px-5 py-4 text-sm">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <div className="font-semibold text-slate-950">
+                            {bill.bill_number}
+                          </div>
+
+                          <div className="mt-1 text-xs text-slate-500">
+                            {bill.supplier?.supplier_name ||
+                              "Supplier not linked"}{" "}
+                            · {bill.bill_date || "No date"}
+                          </div>
+                        </div>
+
+                        <div className="text-left sm:text-right">
+                          <div className="font-semibold text-slate-950">
+                            {bill.currency_code || "—"}{" "}
+                            {Number(bill.total_amount || 0).toLocaleString()}
+                          </div>
+
+                          <div className="mt-1 text-xs text-slate-500">
+                            Balance: {bill.currency_code || "—"}{" "}
+                            {Number(bill.balance_due || 0).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 inline-flex rounded-full bg-[#F1F1F1] px-3 py-1 text-xs font-semibold text-[#073D7F]">
+                        {formatStatus(bill.status)}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-5 py-8 text-sm text-slate-500">
+                    No purchase bills created yet.
                   </div>
                 )}
               </div>
