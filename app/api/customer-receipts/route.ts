@@ -84,6 +84,9 @@ export async function POST(request: Request) {
     const receivableAccountId = body.receivable_account_id
       ? String(body.receivable_account_id).trim()
       : null;
+      const incomeAccountId = body.income_account_id
+  ? String(body.income_account_id).trim()
+  : null;
 
     const referenceNumber = body.reference_number
       ? String(body.reference_number).trim()
@@ -156,21 +159,35 @@ export async function POST(request: Request) {
       );
     }
 
-    if (salesInvoiceId) {
-      const { data: invoice } = await supabase
-        .from("sales_invoices")
-        .select("id")
-        .eq("id", salesInvoiceId)
-        .eq("organisation_id", organisationId)
-        .single();
+    let invoiceReceivableAccountId: string | null = null;
 
-      if (!invoice) {
-        return Response.json(
-          { error: "Sales invoice not found for this organisation." },
-          { status: 404 }
-        );
-      }
-    }
+if (salesInvoiceId) {
+  const { data: invoice } = await supabase
+    .from("sales_invoices")
+    .select("id, receivable_account_id")
+    .eq("id", salesInvoiceId)
+    .eq("organisation_id", organisationId)
+    .single();
+
+  if (!invoice) {
+    return Response.json(
+      { error: "Sales invoice not found for this organisation." },
+      { status: 404 }
+    );
+  }
+
+  invoiceReceivableAccountId = invoice.receivable_account_id || null;
+}
+
+if (!salesInvoiceId && !incomeAccountId) {
+  return Response.json(
+    {
+      error:
+        "Income account is required when receipt is not linked to a sales invoice.",
+    },
+    { status: 400 }
+  );
+}
 
     const { data: receipt, error: receiptError } = await supabase
       .from("customer_receipts")
@@ -189,7 +206,8 @@ export async function POST(request: Request) {
         net_amount: netAmount,
         payment_method: paymentMethod,
         bank_account_id: bankAccountId,
-        receivable_account_id: receivableAccountId,
+        receivable_account_id: invoiceReceivableAccountId || receivableAccountId,
+        income_account_id: salesInvoiceId ? null : incomeAccountId,
         reference_number: referenceNumber,
         narration,
         internal_notes: internalNotes,
@@ -219,6 +237,8 @@ export async function POST(request: Request) {
           customer_id: customerId,
           customer_name: customer.customer_name,
           sales_invoice_id: salesInvoiceId,
+          receivable_account_id: invoiceReceivableAccountId || receivableAccountId,
+          income_account_id: salesInvoiceId ? null : incomeAccountId, 
           amount_received: amountReceived,
           bank_charges: bankCharges,
           net_amount: netAmount,
