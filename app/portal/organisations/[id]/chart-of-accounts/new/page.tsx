@@ -54,13 +54,6 @@ export default async function NewChartAccountPage({
     redirect("/portal/organisations");
   }
 
-  const { data: parentAccounts } = await supabase
-    .from("chart_of_accounts")
-    .select("id, account_code, account_name, account_type")
-    .eq("organisation_id", id)
-    .eq("is_active", true)
-    .order("account_code", { ascending: true });
-
   const organisationName =
     organisation.trading_name || organisation.legal_name || "Organisation";
 
@@ -102,10 +95,7 @@ export default async function NewChartAccountPage({
       </section>
 
       <section className="mx-auto max-w-6xl px-6 py-10 lg:px-8">
-        <CreateChartAccountForm
-          organisationId={organisation.id}
-          parentAccounts={parentAccounts || []}
-        />
+        <CreateChartAccountForm organisationId={organisation.id} />
       </section>
     </main>
   );

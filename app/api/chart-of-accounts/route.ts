@@ -9,67 +9,126 @@ const internalRoles = [
   "IT_ADMIN",
   "ACCOUNTANT_ADMIN",
   "ACCOUNTANT_USER",
-  "CUSTOMER_SUPPORT",
   "COMPLIANCE_ADMIN",
   "OPERATIONS_ADMIN",
 ];
 
-const allowedAccountTypes = [
-  "ASSET",
-  "LIABILITY",
-  "EQUITY",
-  "REVENUE",
-  "COST_OF_SALES",
-  "OPERATING_EXPENSE",
-  "OTHER_INCOME",
-  "FINANCE_COST",
-  "TAX",
-];
+const validAccountTypes = ["ASSET", "LIABILITY", "INCOME", "EXPENSE", "EQUITY"];
 
-const allowedNormalBalances = ["DEBIT", "CREDIT"];
+const validSubtypesByType: Record<string, string[]> = {
+  ASSET: ["CURRENT_ASSET", "NON_CURRENT_ASSET"],
+  LIABILITY: ["CURRENT_LIABILITY", "NON_CURRENT_LIABILITY"],
+  INCOME: [
+    "OPERATING_INCOME",
+    "INVESTING_INCOME",
+    "FINANCING_INCOME",
+    "DISCONTINUED_OPERATIONS",
+    "OTHER_COMPREHENSIVE_INCOME",
+  ],
+  EXPENSE: [
+    "COST_OF_SALES",
+    "OTHER_OPERATING_EXPENSE",
+    "INVESTING_EXPENSE",
+    "FINANCING_EXPENSE",
+    "INCOME_TAX",
+    "DISCONTINUED_OPERATIONS",
+  ],
+  EQUITY: ["EQUITY"],
+};
 
-function getMissingColumnName(errorMessage: string) {
-  const match = errorMessage.match(/Could not find the '([^']+)' column/i);
-  return match?.[1] || null;
-}
-
-async function insertWithSchemaRetry({
-  supabase,
-  table,
-  payload,
-  selectColumns = "id",
-}: {
-  supabase: Awaited<ReturnType<typeof createClient>>;
-  table: string;
-  payload: Record<string, unknown>;
-  selectColumns?: string;
-}) {
-  let safePayload = { ...payload };
-  const removedColumns: string[] = [];
-
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const { data, error } = await supabase
-      .from(table)
-      .insert(safePayload)
-      .select(selectColumns)
-      .single();
-
-    if (!error && data) {
-      return { data, removedColumns };
-    }
-
-    const missingColumn = getMissingColumnName(error?.message || "");
-
-    if (missingColumn && missingColumn in safePayload) {
-      delete safePayload[missingColumn];
-      removedColumns.push(missingColumn);
-      continue;
-    }
-
-    throw new Error(error?.message || `Unable to insert into ${table}.`);
+function normalBalanceForType(accountType: string) {
+  if (["ASSET", "EXPENSE"].includes(accountType)) {
+    return "DEBIT";
   }
 
-  throw new Error(`Unable to insert into ${table} after schema retry.`);
+  return "CREDIT";
+}
+
+function fsSectionForSubtype(accountSubtype: string) {
+  if (
+    [
+      "CURRENT_ASSET",
+      "NON_CURRENT_ASSET",
+      "CURRENT_LIABILITY",
+      "NON_CURRENT_LIABILITY",
+      "EQUITY",
+    ].includes(accountSubtype)
+  ) {
+    return "Statement of Financial Position";
+  }
+
+  if (
+    ["OPERATING_INCOME", "COST_OF_SALES", "OTHER_OPERATING_EXPENSE"].includes(
+      accountSubtype
+    )
+  ) {
+    return "Statement of Profit or Loss and Other Comprehensive Income - Operating Activities";
+  }
+
+  if (["INVESTING_INCOME", "INVESTING_EXPENSE"].includes(accountSubtype)) {
+    return "Statement of Profit or Loss and Other Comprehensive Income - Investing Activities";
+  }
+
+  if (["FINANCING_INCOME", "FINANCING_EXPENSE"].includes(accountSubtype)) {
+    return "Statement of Profit or Loss and Other Comprehensive Income - Financing Activities";
+  }
+
+  if (accountSubtype === "INCOME_TAX") {
+    return "Statement of Profit or Loss and Other Comprehensive Income - Income Tax";
+  }
+
+  if (accountSubtype === "OTHER_COMPREHENSIVE_INCOME") {
+    return "Statement of Profit or Loss and Other Comprehensive Income - Other Comprehensive Income";
+  }
+
+  if (accountSubtype === "DISCONTINUED_OPERATIONS") {
+    return "Statement of Profit or Loss and Other Comprehensive Income - Discontinued Operations";
+  }
+
+  return "";
+}
+
+function cashFlowCategoryForSubtype(accountSubtype: string) {
+  if (
+    [
+      "CURRENT_ASSET",
+      "CURRENT_LIABILITY",
+      "OPERATING_INCOME",
+      "COST_OF_SALES",
+      "OTHER_OPERATING_EXPENSE",
+      "INCOME_TAX",
+    ].includes(accountSubtype)
+  ) {
+    return "Operating Activities";
+  }
+
+  if (
+    ["NON_CURRENT_ASSET", "INVESTING_INCOME", "INVESTING_EXPENSE"].includes(
+      accountSubtype
+    )
+  ) {
+    return "Investing Activities";
+  }
+
+  if (
+    [
+      "NON_CURRENT_LIABILITY",
+      "EQUITY",
+      "FINANCING_INCOME",
+      "FINANCING_EXPENSE",
+    ].includes(accountSubtype)
+  ) {
+    return "Financing Activities";
+  }
+
+  if (
+    accountSubtype === "OTHER_COMPREHENSIVE_INCOME" ||
+    accountSubtype === "DISCONTINUED_OPERATIONS"
+  ) {
+    return "Non-cash / Other";
+  }
+
+  return "";
 }
 
 export async function POST(request: Request) {
@@ -84,13 +143,13 @@ export async function POST(request: Request) {
       return Response.json({ error: "Not authenticated." }, { status: 401 });
     }
 
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile } = await supabase
       .from("profiles")
       .select("role")
       .eq("id", user.id)
       .single();
 
-    if (profileError || !profile || !internalRoles.includes(profile.role)) {
+    if (!profile || !internalRoles.includes(profile.role)) {
       return Response.json({ error: "Access denied." }, { status: 403 });
     }
 
@@ -99,31 +158,23 @@ export async function POST(request: Request) {
     const organisationId = String(body.organisation_id || "").trim();
     const accountCode = String(body.account_code || "").trim();
     const accountName = String(body.account_name || "").trim();
-    const accountType = String(body.account_type || "").trim();
-    const accountSubtype = body.account_subtype
-      ? String(body.account_subtype).trim()
-      : null;
-    const parentAccountId = body.parent_account_id
-      ? String(body.parent_account_id).trim()
-      : null;
-    const normalBalance = String(body.normal_balance || "DEBIT").trim();
-    const fsSection = body.fs_section ? String(body.fs_section).trim() : null;
-    const fsLineItem = body.fs_line_item
-      ? String(body.fs_line_item).trim()
-      : null;
-    const managementReportCategory = body.management_report_category
-      ? String(body.management_report_category).trim()
-      : null;
-    const cashFlowCategory = body.cash_flow_category
-      ? String(body.cash_flow_category).trim()
-      : null;
+    const accountType = String(body.account_type || "").trim().toUpperCase();
+    const accountSubtype = String(body.account_subtype || "")
+      .trim()
+      .toUpperCase();
+
+    const fsLineItem = String(body.fs_line_item || "").trim();
+    const managementReportCategory = String(
+      body.management_report_category || ""
+    ).trim();
+
     const description = body.description
       ? String(body.description).trim()
       : null;
 
-    const taxRelevant = body.tax_relevant === true;
-    const isControlAccount = body.is_control_account === true;
-    const isBankAccount = body.is_bank_account === true;
+    const taxRelevant = Boolean(body.tax_relevant);
+    const isControlAccount = Boolean(body.is_control_account);
+    const isBankAccount = Boolean(body.is_bank_account);
 
     if (!organisationId) {
       return Response.json(
@@ -146,43 +197,59 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!allowedAccountTypes.includes(accountType)) {
+    if (!validAccountTypes.includes(accountType)) {
       return Response.json(
-        { error: "Invalid account type." },
+        { error: "Valid account type is required." },
         { status: 400 }
       );
     }
 
-    if (!allowedNormalBalances.includes(normalBalance)) {
+    if (!validSubtypesByType[accountType]?.includes(accountSubtype)) {
       return Response.json(
-        { error: "Invalid normal balance." },
+        { error: "Valid account subtype is required for the selected account type." },
         { status: 400 }
       );
     }
 
-    const { data: organisation, error: organisationError } = await supabase
+    if (!fsLineItem) {
+      return Response.json(
+        { error: "Financial statement line item is required." },
+        { status: 400 }
+      );
+    }
+
+    if (!managementReportCategory) {
+      return Response.json(
+        { error: "Management report category is required." },
+        { status: 400 }
+      );
+    }
+
+    const { data: organisation } = await supabase
       .from("organisations")
-      .select("id, legal_name, trading_name")
+      .select("id")
       .eq("id", organisationId)
       .single();
 
-    if (organisationError || !organisation) {
+    if (!organisation) {
       return Response.json(
         { error: "Organisation not found." },
         { status: 404 }
       );
     }
 
-    const accountResult = await insertWithSchemaRetry({
-      supabase,
-      table: "chart_of_accounts",
-      payload: {
+    const normalBalance = normalBalanceForType(accountType);
+    const fsSection = fsSectionForSubtype(accountSubtype);
+    const cashFlowCategory = cashFlowCategoryForSubtype(accountSubtype);
+
+    const { data: account, error: accountError } = await supabase
+      .from("chart_of_accounts")
+      .insert({
         organisation_id: organisationId,
         account_code: accountCode,
         account_name: accountName,
         account_type: accountType,
         account_subtype: accountSubtype,
-        parent_account_id: parentAccountId,
         normal_balance: normalBalance,
         fs_section: fsSection,
         fs_line_item: fsLineItem,
@@ -195,25 +262,36 @@ export async function POST(request: Request) {
         is_active: true,
         created_by: user.id,
         updated_by: user.id,
-      },
-      selectColumns: "id",
-    });
+      })
+      .select("id")
+      .single();
 
-    const account = accountResult.data as unknown as { id: string };
+    if (accountError || !account) {
+      return Response.json(
+        {
+          error:
+            accountError?.message || "Unable to create chart of account.",
+        },
+        { status: 500 }
+      );
+    }
 
     try {
       await supabase.from("audit_logs").insert({
         user_id: user.id,
         organisation_id: organisationId,
-        action: "CHART_ACCOUNT_CREATED",
+        action: "CHART_OF_ACCOUNT_CREATED",
         details: {
-          chart_account_id: account.id,
+          chart_of_account_id: account.id,
           account_code: accountCode,
           account_name: accountName,
           account_type: accountType,
+          account_subtype: accountSubtype,
+          normal_balance: normalBalance,
           fs_section: fsSection,
           fs_line_item: fsLineItem,
-          removed_account_columns: accountResult.removedColumns,
+          cash_flow_category: cashFlowCategory,
+          management_report_category: managementReportCategory,
         },
       });
     } catch {
@@ -222,7 +300,7 @@ export async function POST(request: Request) {
 
     return Response.json({
       success: true,
-      accountId: account.id,
+      chartAccountId: account.id,
     });
   } catch (error) {
     return Response.json(
@@ -230,7 +308,7 @@ export async function POST(request: Request) {
         error:
           error instanceof Error
             ? error.message
-            : "Unable to create chart account.",
+            : "Unable to create chart of account.",
       },
       { status: 500 }
     );
