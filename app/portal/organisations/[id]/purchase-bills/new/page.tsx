@@ -68,28 +68,45 @@ export default async function NewPurchaseBillPage({
     .order("item_name", { ascending: true });
 
   const { data: expenseAccounts } = await supabase
-    .from("chart_of_accounts")
-    .select("id, account_code, account_name, account_type")
-    .eq("organisation_id", id)
-    .eq("is_active", true)
-    .in("account_type", ["COST_OF_SALES", "OPERATING_EXPENSE"])
-    .order("account_code", { ascending: true });
+  .from("chart_of_accounts")
+  .select("id, account_code, account_name, account_type, account_subtype")
+  .eq("organisation_id", id)
+  .eq("is_active", true)
+  .eq("account_type", "EXPENSE")
+  .in("account_subtype", [
+    "COST_OF_SALES",
+    "OTHER_OPERATING_EXPENSE",
+    "INVESTING_EXPENSE",
+    "FINANCING_EXPENSE",
+    "DISCONTINUED_OPERATIONS",
+  ])
+  .order("account_code", { ascending: true });
 
   const { data: payableAccounts } = await supabase
-    .from("chart_of_accounts")
-    .select("id, account_code, account_name, account_type")
-    .eq("organisation_id", id)
-    .eq("is_active", true)
-    .in("account_type", ["LIABILITY"])
-    .order("account_code", { ascending: true });
+  .from("chart_of_accounts")
+  .select(
+    "id, account_code, account_name, account_type, account_subtype, fs_line_item, management_report_category, is_control_account"
+  )
+  .eq("organisation_id", id)
+  .eq("is_active", true)
+  .eq("account_type", "LIABILITY")
+  .eq("account_subtype", "CURRENT_LIABILITY")
+  .or(
+    "fs_line_item.ilike.%payable%,management_report_category.ilike.%payable%,is_control_account.eq.true"
+  )
+  .order("account_code", { ascending: true });
 
   const { data: taxAccounts } = await supabase
-    .from("chart_of_accounts")
-    .select("id, account_code, account_name, account_type")
-    .eq("organisation_id", id)
-    .eq("is_active", true)
-    .in("account_type", ["TAX", "LIABILITY", "ASSET"])
-    .order("account_code", { ascending: true });
+  .from("chart_of_accounts")
+  .select(
+    "id, account_code, account_name, account_type, account_subtype, fs_line_item, tax_relevant"
+  )
+  .eq("organisation_id", id)
+  .eq("is_active", true)
+  .or(
+    "tax_relevant.eq.true,account_subtype.eq.INCOME_TAX,fs_line_item.ilike.%tax%"
+  )
+  .order("account_code", { ascending: true });
 
   const { data: accountingPeriods } = await supabase
     .from("accounting_periods")

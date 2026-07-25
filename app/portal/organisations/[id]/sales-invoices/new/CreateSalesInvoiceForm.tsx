@@ -22,6 +22,11 @@ type AccountOption = {
   account_code: string | null;
   account_name: string | null;
   account_type: string | null;
+  account_subtype?: string | null;
+  fs_line_item?: string | null;
+  management_report_category?: string | null;
+  is_control_account?: boolean | null;
+  tax_relevant?: boolean | null;
 };
 
 type PeriodOption = {
@@ -577,46 +582,6 @@ export default function CreateSalesInvoiceForm({
                     }
                     className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
                   />
-                </label>
-
-                <label className="block">
-                  <span className="text-sm font-semibold text-slate-700">
-                    Revenue account
-                  </span>
-                  <select
-                    value={line.revenue_account_id}
-                    onChange={(event) =>
-                      updateLine(index, "revenue_account_id", event.target.value)
-                    }
-                    className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
-                  >
-                    <option value="">Use default revenue account</option>
-                    {revenueAccounts.map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {account.account_code} - {account.account_name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="block">
-                  <span className="text-sm font-semibold text-slate-700">
-                    Tax account
-                  </span>
-                  <select
-                    value={line.tax_account_id}
-                    onChange={(event) =>
-                      updateLine(index, "tax_account_id", event.target.value)
-                    }
-                    className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
-                  >
-                    <option value="">Use default tax account</option>
-                    {taxAccounts.map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {account.account_code} - {account.account_name}
-                      </option>
-                    ))}
-                  </select>
                 </label>
               </div>
             </div>
