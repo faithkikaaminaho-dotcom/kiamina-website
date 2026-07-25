@@ -85,6 +85,10 @@ export async function POST(request: Request) {
       ? String(body.payable_account_id).trim()
       : null;
 
+    const expenseAccountId = body.expense_account_id
+  ? String(body.expense_account_id).trim()
+  : null;  
+
     const referenceNumber = body.reference_number
       ? String(body.reference_number).trim()
       : null;
@@ -156,21 +160,35 @@ export async function POST(request: Request) {
       );
     }
 
-    if (purchaseBillId) {
-      const { data: bill } = await supabase
-        .from("purchase_bills")
-        .select("id")
-        .eq("id", purchaseBillId)
-        .eq("organisation_id", organisationId)
-        .single();
+    let billPayableAccountId: string | null = null;
 
-      if (!bill) {
-        return Response.json(
-          { error: "Purchase bill not found for this organisation." },
-          { status: 404 }
-        );
-      }
-    }
+if (purchaseBillId) {
+  const { data: bill } = await supabase
+    .from("purchase_bills")
+    .select("id, payable_account_id")
+    .eq("id", purchaseBillId)
+    .eq("organisation_id", organisationId)
+    .single();
+
+  if (!bill) {
+    return Response.json(
+      { error: "Purchase bill not found for this organisation." },
+      { status: 404 }
+    );
+  }
+
+  billPayableAccountId = bill.payable_account_id || null;
+}
+
+if (!purchaseBillId && !expenseAccountId) {
+  return Response.json(
+    {
+      error:
+        "Expense account is required when payment is not linked to a purchase bill.",
+    },
+    { status: 400 }
+  );
+}
 
     const { data: payment, error: paymentError } = await supabase
       .from("supplier_payments")
@@ -189,7 +207,8 @@ export async function POST(request: Request) {
         total_cash_outflow: totalCashOutflow,
         payment_method: paymentMethod,
         bank_account_id: bankAccountId,
-        payable_account_id: payableAccountId,
+        payable_account_id: billPayableAccountId || payableAccountId,
+        expense_account_id: purchaseBillId ? null : expenseAccountId,
         reference_number: referenceNumber,
         narration,
         internal_notes: internalNotes,
@@ -219,6 +238,8 @@ export async function POST(request: Request) {
           supplier_id: supplierId,
           supplier_name: supplier.supplier_name,
           purchase_bill_id: purchaseBillId,
+          payable_account_id: billPayableAccountId || payableAccountId,
+          expense_account_id: purchaseBillId ? null : expenseAccountId,
           amount_paid: amountPaid,
           bank_charges: bankCharges,
           total_cash_outflow: totalCashOutflow,
