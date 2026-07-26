@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import AutoNumberInput from "@/app/portal/components/AutoNumberInput";
 
 type SupplierOption = {
   id: string;
@@ -293,18 +294,14 @@ export default function CreatePurchaseBillForm({
           </select>
         </label>
 
-        <label className="block">
-          <span className="text-sm font-semibold text-slate-700">
-            Bill number
-          </span>
-          <input
-            value={billNumber}
-            onChange={(event) => setBillNumber(event.target.value)}
-            placeholder="BILL-0001"
-            required
-            className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
-          />
-        </label>
+        <AutoNumberInput
+  label="Bill number"
+  value={billNumber}
+  onChange={setBillNumber}
+  organisationId={organisationId}
+  documentType="PURCHASE_BILL"
+  placeholder="BILL-0001"
+/>
 
         <label className="block">
           <span className="text-sm font-semibold text-slate-700">

@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
+import { reserveDocumentNumber } from "@/lib/numbering";
 
 export const runtime = "nodejs";
 
@@ -75,7 +76,12 @@ export async function POST(request: Request) {
       ? String(body.engagement_id).trim()
       : null;
 
-    const transactionNumber = String(body.transaction_number || "").trim();
+    const transactionNumber = await reserveDocumentNumber({
+  supabase,
+  organisationId,
+  documentType: "FUNDING_TRANSACTION",
+  providedNumber: body.transaction_number,
+});
     const transactionDate = String(body.transaction_date || "").trim();
     const transactionType = String(body.transaction_type || "")
       .trim()

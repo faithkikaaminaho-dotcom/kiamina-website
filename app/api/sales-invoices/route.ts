@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
+import { reserveDocumentNumber } from "@/lib/numbering";
 
 export const runtime = "nodejs";
 
@@ -132,7 +133,12 @@ export async function POST(request: Request) {
       ? String(body.engagement_id).trim()
       : null;
 
-    const invoiceNumber = String(body.invoice_number || "").trim();
+    const invoiceNumber = await reserveDocumentNumber({
+  supabase,
+  organisationId,
+  documentType: "SALES_INVOICE",
+  providedNumber: body.invoice_number,
+});
     const invoiceDate = String(body.invoice_date || "").trim();
     const dueDate = body.due_date ? String(body.due_date).trim() : null;
 

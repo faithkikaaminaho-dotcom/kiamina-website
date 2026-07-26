@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import AutoNumberInput from "@/app/portal/components/AutoNumberInput";
 
 type SupplierOption = {
   id: string;
@@ -242,18 +243,14 @@ export default function CreateSupplierPaymentForm({
           </select>
         </label>
 
-        <label className="block">
-          <span className="text-sm font-semibold text-slate-700">
-            Payment number
-          </span>
-          <input
-            value={paymentNumber}
-            onChange={(event) => setPaymentNumber(event.target.value)}
-            placeholder="PAY-0001"
-            required
-            className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
-          />
-        </label>
+        <AutoNumberInput
+  label="Payment number"
+  value={paymentNumber}
+  onChange={setPaymentNumber}
+  organisationId={organisationId}
+  documentType="SUPPLIER_PAYMENT"
+  placeholder="PAY-0001"
+/>
 
         <label className="block">
           <span className="text-sm font-semibold text-slate-700">

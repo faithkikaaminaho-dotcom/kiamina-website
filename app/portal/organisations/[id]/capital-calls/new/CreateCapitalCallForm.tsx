@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import AutoNumberInput from "@/app/portal/components/AutoNumberInput";
 
 type InvestorOption = {
   id: string;
@@ -210,18 +211,14 @@ export default function CreateCapitalCallForm({
           ) : null}
         </label>
 
-        <label className="block">
-          <span className="text-sm font-semibold text-slate-700">
-            Capital call number
-          </span>
-          <input
-            value={callNumber}
-            onChange={(event) => setCallNumber(event.target.value)}
-            placeholder="CAPCALL-0001"
-            required
-            className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
-          />
-        </label>
+        <AutoNumberInput
+  label="Capital call number"
+  value={callNumber}
+  onChange={setCallNumber}
+  organisationId={organisationId}
+  documentType="CAPITAL_CALL"
+  placeholder="CAPCALL-0001"
+/>
 
         <label className="block">
           <span className="text-sm font-semibold text-slate-700">
