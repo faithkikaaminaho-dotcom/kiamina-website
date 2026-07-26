@@ -48,6 +48,10 @@ function formatAccessRole(role?: string | null) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function formatMoney(currencyCode?: string | null, amount?: number | null) {
+  return `${currencyCode || "—"} ${Number(amount || 0).toLocaleString()}`;
+}
+
 export default async function OrganisationDetailPage({
   params,
 }: {
@@ -162,6 +166,182 @@ const { count: draftPurchaseBillsCount } = await supabase
   .select("*", { count: "exact", head: true })
   .eq("organisation_id", id)
   .eq("status", "DRAFT");
+
+const { count: customerReceiptsCount } = await supabase
+  .from("customer_receipts")
+  .select("*", { count: "exact", head: true })
+  .eq("organisation_id", id);
+
+const { count: supplierPaymentsCount } = await supabase
+  .from("supplier_payments")
+  .select("*", { count: "exact", head: true })
+  .eq("organisation_id", id);
+
+const { count: capitalCallsCount } = await supabase
+  .from("capital_calls")
+  .select("*", { count: "exact", head: true })
+  .eq("organisation_id", id);
+
+const { count: fundingTransactionsCount } = await supabase
+  .from("funding_transactions")
+  .select("*", { count: "exact", head: true })
+  .eq("organisation_id", id);
+
+const { data: recentCustomerReceipts } = await supabase
+  .from("customer_receipts")
+  .select(
+    "id, receipt_number, receipt_date, currency_code, amount_received, net_amount, status, customer_id"
+  )
+  .eq("organisation_id", id)
+  .order("created_at", { ascending: false })
+  .limit(5);
+
+const customerReceiptCustomerIds =
+  recentCustomerReceipts?.map((receipt) => receipt.customer_id).filter(Boolean) ||
+  [];
+
+let customerReceiptCustomers: {
+  id: string;
+  customer_name: string | null;
+}[] = [];
+
+if (customerReceiptCustomerIds.length > 0) {
+  const { data: customersForReceipts } = await supabase
+    .from("customers")
+    .select("id, customer_name")
+    .in("id", customerReceiptCustomerIds);
+
+  customerReceiptCustomers = customersForReceipts || [];
+}
+
+const recentCustomerReceiptsWithCustomers =
+  recentCustomerReceipts?.map((receipt) => {
+    const customer = customerReceiptCustomers.find(
+      (record) => record.id === receipt.customer_id
+    );
+
+    return {
+      ...receipt,
+      customer,
+    };
+  }) || [];
+
+const { data: recentSupplierPayments } = await supabase
+  .from("supplier_payments")
+  .select(
+    "id, payment_number, payment_date, currency_code, amount_paid, total_cash_outflow, status, supplier_id"
+  )
+  .eq("organisation_id", id)
+  .order("created_at", { ascending: false })
+  .limit(5);
+
+const supplierPaymentSupplierIds =
+  recentSupplierPayments?.map((payment) => payment.supplier_id).filter(Boolean) ||
+  [];
+
+let supplierPaymentSuppliers: {
+  id: string;
+  supplier_name: string | null;
+}[] = [];
+
+if (supplierPaymentSupplierIds.length > 0) {
+  const { data: suppliersForPayments } = await supabase
+    .from("suppliers")
+    .select("id, supplier_name")
+    .in("id", supplierPaymentSupplierIds);
+
+  supplierPaymentSuppliers = suppliersForPayments || [];
+}
+
+const recentSupplierPaymentsWithSuppliers =
+  recentSupplierPayments?.map((payment) => {
+    const supplier = supplierPaymentSuppliers.find(
+      (record) => record.id === payment.supplier_id
+    );
+
+    return {
+      ...payment,
+      supplier,
+    };
+  }) || [];
+
+const { data: recentCapitalCalls } = await supabase
+  .from("capital_calls")
+  .select(
+    "id, call_number, call_date, due_date, currency_code, called_amount, outstanding_amount, status, investor_id"
+  )
+  .eq("organisation_id", id)
+  .order("created_at", { ascending: false })
+  .limit(5);
+
+const capitalCallInvestorIds =
+  recentCapitalCalls?.map((call) => call.investor_id).filter(Boolean) || [];
+
+let capitalCallInvestors: {
+  id: string;
+  investor_name: string | null;
+}[] = [];
+
+if (capitalCallInvestorIds.length > 0) {
+  const { data: investorsForCapitalCalls } = await supabase
+    .from("investors")
+    .select("id, investor_name")
+    .in("id", capitalCallInvestorIds);
+
+  capitalCallInvestors = investorsForCapitalCalls || [];
+}
+
+const recentCapitalCallsWithInvestors =
+  recentCapitalCalls?.map((call) => {
+    const investor = capitalCallInvestors.find(
+      (record) => record.id === call.investor_id
+    );
+
+    return {
+      ...call,
+      investor,
+    };
+  }) || [];
+
+const { data: recentFundingTransactions } = await supabase
+  .from("funding_transactions")
+  .select(
+    "id, transaction_number, transaction_date, transaction_type, currency_code, amount, net_amount, status, investor_id"
+  )
+  .eq("organisation_id", id)
+  .order("created_at", { ascending: false })
+  .limit(5);
+
+const fundingTransactionInvestorIds =
+  recentFundingTransactions
+    ?.map((transaction) => transaction.investor_id)
+    .filter(Boolean) || [];
+
+let fundingTransactionInvestors: {
+  id: string;
+  investor_name: string | null;
+}[] = [];
+
+if (fundingTransactionInvestorIds.length > 0) {
+  const { data: investorsForFundingTransactions } = await supabase
+    .from("investors")
+    .select("id, investor_name")
+    .in("id", fundingTransactionInvestorIds);
+
+  fundingTransactionInvestors = investorsForFundingTransactions || [];
+}
+
+const recentFundingTransactionsWithInvestors =
+  recentFundingTransactions?.map((transaction) => {
+    const investor = fundingTransactionInvestors.find(
+      (record) => record.id === transaction.investor_id
+    );
+
+    return {
+      ...transaction,
+      investor,
+    };
+  }) || [];
 
   const { data: recentDocuments } = await supabase
     .from("documents")
@@ -1221,6 +1401,362 @@ const recentPurchaseBillsWithSuppliers =
                 ) : (
                   <div className="px-5 py-8 text-sm text-slate-500">
                     No purchase bills created yet.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-8 rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
+                Money Movement
+              </div>
+
+              <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">
+                Receipts, payments, and funding activity
+              </h2>
+
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
+                Track customer receipts, supplier payments, capital calls, and
+                funding transactions before they are posted to the general
+                ledger.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap lg:justify-end">
+              <a
+                href={`/portal/organisations/${organisation.id}/customer-receipts/new`}
+                className="rounded-full bg-[#073D7F] px-5 py-3 text-center text-sm font-semibold text-white"
+              >
+                New Customer Receipt
+              </a>
+
+              <a
+                href={`/portal/organisations/${organisation.id}/supplier-payments/new`}
+                className="rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-center text-sm font-semibold text-[#073D7F]"
+              >
+                New Supplier Payment
+              </a>
+
+              <a
+                href={`/portal/organisations/${organisation.id}/capital-calls/new`}
+                className="rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-center text-sm font-semibold text-[#073D7F]"
+              >
+                New Capital Call
+              </a>
+
+              <a
+                href={`/portal/organisations/${organisation.id}/funding-transactions/new`}
+                className="rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-center text-sm font-semibold text-[#073D7F]"
+              >
+                New Funding Transaction
+              </a>
+            </div>
+          </div>
+
+          <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-6">
+              <div className="text-sm font-semibold text-slate-500">
+                Customer Receipts
+              </div>
+              <div className="mt-4 text-3xl font-semibold text-slate-950">
+                {customerReceiptsCount ?? 0}
+              </div>
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                Cash received from customers, with or without linked invoices.
+              </p>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-6">
+              <div className="text-sm font-semibold text-slate-500">
+                Supplier Payments
+              </div>
+              <div className="mt-4 text-3xl font-semibold text-slate-950">
+                {supplierPaymentsCount ?? 0}
+              </div>
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                Cash paid to suppliers, with or without linked bills.
+              </p>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-6">
+              <div className="text-sm font-semibold text-slate-500">
+                Capital Calls
+              </div>
+              <div className="mt-4 text-3xl font-semibold text-slate-950">
+                {capitalCallsCount ?? 0}
+              </div>
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                Funding requests raised against investors, funders, donors, or
+                lenders.
+              </p>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-6">
+              <div className="text-sm font-semibold text-slate-500">
+                Funding Transactions
+              </div>
+              <div className="mt-4 text-3xl font-semibold text-slate-950">
+                {fundingTransactionsCount ?? 0}
+              </div>
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                Actual funding receipts, drawdowns, repayments, and interest
+                movements.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-8 grid gap-6 xl:grid-cols-2">
+            <div className="overflow-hidden rounded-[1.5rem] border border-[#D9E3F4]">
+              <div className="flex items-center justify-between gap-4 bg-[#F1F1F1] px-5 py-4">
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[#6491DE]">
+                  Recent Customer Receipts
+                </div>
+
+                <a
+                  href={`/portal/organisations/${organisation.id}/customer-receipts/new`}
+                  className="text-sm font-semibold text-[#073D7F]"
+                >
+                  Add receipt
+                </a>
+              </div>
+
+              <div className="divide-y divide-[#D9E3F4]">
+                {recentCustomerReceiptsWithCustomers.length > 0 ? (
+                  recentCustomerReceiptsWithCustomers.map((receipt) => (
+                    <div key={receipt.id} className="px-5 py-4 text-sm">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <div className="font-semibold text-slate-950">
+                            {receipt.receipt_number}
+                          </div>
+
+                          <div className="mt-1 text-xs text-slate-500">
+                            {receipt.customer?.customer_name ||
+                              "Customer not linked"}{" "}
+                            · {receipt.receipt_date || "No date"}
+                          </div>
+                        </div>
+
+                        <div className="text-left sm:text-right">
+                          <div className="font-semibold text-slate-950">
+                            {formatMoney(
+                              receipt.currency_code,
+                              receipt.net_amount
+                            )}
+                          </div>
+
+                          <div className="mt-1 text-xs text-slate-500">
+                            Received:{" "}
+                            {formatMoney(
+                              receipt.currency_code,
+                              receipt.amount_received
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 inline-flex rounded-full bg-[#F1F1F1] px-3 py-1 text-xs font-semibold text-[#073D7F]">
+                        {formatStatus(receipt.status)}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-5 py-8 text-sm text-slate-500">
+                    No customer receipts recorded yet.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-[1.5rem] border border-[#D9E3F4]">
+              <div className="flex items-center justify-between gap-4 bg-[#F1F1F1] px-5 py-4">
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[#6491DE]">
+                  Recent Supplier Payments
+                </div>
+
+                <a
+                  href={`/portal/organisations/${organisation.id}/supplier-payments/new`}
+                  className="text-sm font-semibold text-[#073D7F]"
+                >
+                  Add payment
+                </a>
+              </div>
+
+              <div className="divide-y divide-[#D9E3F4]">
+                {recentSupplierPaymentsWithSuppliers.length > 0 ? (
+                  recentSupplierPaymentsWithSuppliers.map((payment) => (
+                    <div key={payment.id} className="px-5 py-4 text-sm">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <div className="font-semibold text-slate-950">
+                            {payment.payment_number}
+                          </div>
+
+                          <div className="mt-1 text-xs text-slate-500">
+                            {payment.supplier?.supplier_name ||
+                              "Supplier not linked"}{" "}
+                            · {payment.payment_date || "No date"}
+                          </div>
+                        </div>
+
+                        <div className="text-left sm:text-right">
+                          <div className="font-semibold text-slate-950">
+                            {formatMoney(
+                              payment.currency_code,
+                              payment.total_cash_outflow
+                            )}
+                          </div>
+
+                          <div className="mt-1 text-xs text-slate-500">
+                            Paid:{" "}
+                            {formatMoney(
+                              payment.currency_code,
+                              payment.amount_paid
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 inline-flex rounded-full bg-[#F1F1F1] px-3 py-1 text-xs font-semibold text-[#073D7F]">
+                        {formatStatus(payment.status)}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-5 py-8 text-sm text-slate-500">
+                    No supplier payments recorded yet.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-[1.5rem] border border-[#D9E3F4]">
+              <div className="flex items-center justify-between gap-4 bg-[#F1F1F1] px-5 py-4">
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[#6491DE]">
+                  Recent Capital Calls
+                </div>
+
+                <a
+                  href={`/portal/organisations/${organisation.id}/capital-calls/new`}
+                  className="text-sm font-semibold text-[#073D7F]"
+                >
+                  Add capital call
+                </a>
+              </div>
+
+              <div className="divide-y divide-[#D9E3F4]">
+                {recentCapitalCallsWithInvestors.length > 0 ? (
+                  recentCapitalCallsWithInvestors.map((call) => (
+                    <div key={call.id} className="px-5 py-4 text-sm">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <div className="font-semibold text-slate-950">
+                            {call.call_number}
+                          </div>
+
+                          <div className="mt-1 text-xs text-slate-500">
+                            {call.investor?.investor_name ||
+                              "Investor / funder not linked"}{" "}
+                            · {call.call_date || "No date"}
+                          </div>
+                        </div>
+
+                        <div className="text-left sm:text-right">
+                          <div className="font-semibold text-slate-950">
+                            Called:{" "}
+                            {formatMoney(call.currency_code, call.called_amount)}
+                          </div>
+
+                          <div className="mt-1 text-xs text-slate-500">
+                            Outstanding:{" "}
+                            {formatMoney(
+                              call.currency_code,
+                              call.outstanding_amount
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 inline-flex rounded-full bg-[#F1F1F1] px-3 py-1 text-xs font-semibold text-[#073D7F]">
+                        {formatStatus(call.status)}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-5 py-8 text-sm text-slate-500">
+                    No capital calls recorded yet.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-[1.5rem] border border-[#D9E3F4]">
+              <div className="flex items-center justify-between gap-4 bg-[#F1F1F1] px-5 py-4">
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[#6491DE]">
+                  Recent Funding Transactions
+                </div>
+
+                <a
+                  href={`/portal/organisations/${organisation.id}/funding-transactions/new`}
+                  className="text-sm font-semibold text-[#073D7F]"
+                >
+                  Add funding transaction
+                </a>
+              </div>
+
+              <div className="divide-y divide-[#D9E3F4]">
+                {recentFundingTransactionsWithInvestors.length > 0 ? (
+                  recentFundingTransactionsWithInvestors.map((transaction) => (
+                    <div key={transaction.id} className="px-5 py-4 text-sm">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <div className="font-semibold text-slate-950">
+                            {transaction.transaction_number}
+                          </div>
+
+                          <div className="mt-1 text-xs text-slate-500">
+                            {transaction.investor?.investor_name ||
+                              "Investor / funder not linked"}{" "}
+                            · {transaction.transaction_date || "No date"}
+                          </div>
+                        </div>
+
+                        <div className="text-left sm:text-right">
+                          <div className="font-semibold text-slate-950">
+                            {formatMoney(
+                              transaction.currency_code,
+                              transaction.net_amount
+                            )}
+                          </div>
+
+                          <div className="mt-1 text-xs text-slate-500">
+                            Gross:{" "}
+                            {formatMoney(
+                              transaction.currency_code,
+                              transaction.amount
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <span className="inline-flex rounded-full bg-[#F1F1F1] px-3 py-1 text-xs font-semibold text-[#073D7F]">
+                          {formatStatus(transaction.status)}
+                        </span>
+
+                        <span className="inline-flex rounded-full bg-[#F8FAFC] px-3 py-1 text-xs font-semibold text-slate-600">
+                          {formatStatus(transaction.transaction_type)}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-5 py-8 text-sm text-slate-500">
+                    No funding transactions recorded yet.
                   </div>
                 )}
               </div>
