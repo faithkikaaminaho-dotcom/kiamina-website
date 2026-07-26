@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import CurrencySelect from "@/app/portal/components/CurrencySelect";
 
 type AccountOption = {
   id: string;
@@ -133,19 +134,11 @@ export default function CreateCustomerForm({
           </select>
         </label>
 
-        <label className="block">
-          <span className="text-sm font-semibold text-slate-700">
-            Currency
-          </span>
-          <input
-            value={currencyCode}
-            onChange={(event) =>
-              setCurrencyCode(event.target.value.toUpperCase())
-            }
-            placeholder="NGN"
-            className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm uppercase outline-none focus:border-[#073D7F]"
-          />
-        </label>
+        <CurrencySelect
+  label="Currency"
+  value={currencyCode}
+  onChange={setCurrencyCode}
+/>
 
         <label className="block">
           <span className="text-sm font-semibold text-slate-700">Email</span>
