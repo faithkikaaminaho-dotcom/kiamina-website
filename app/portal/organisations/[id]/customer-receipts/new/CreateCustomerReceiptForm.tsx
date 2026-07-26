@@ -32,6 +32,9 @@ type AccountOption = {
 type PeriodOption = {
   id: string;
   name: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  period_type?: string | null;
 };
 
 type EngagementOption = {
@@ -59,8 +62,6 @@ export default function CreateCustomerReceiptForm({
   bankAccounts,
   receivableAccounts,
   incomeAccounts,
-  accountingPeriods,
-  engagements,
 }: {
   organisationId: string;
   defaultCurrency?: string | null;
@@ -69,22 +70,20 @@ export default function CreateCustomerReceiptForm({
   bankAccounts: AccountOption[];
   receivableAccounts: AccountOption[];
   incomeAccounts: AccountOption[];
-  accountingPeriods: PeriodOption[];
-  engagements: EngagementOption[];
+  accountingPeriods?: PeriodOption[];
+  engagements?: EngagementOption[];
 }) {
   const router = useRouter();
 
   const [customerId, setCustomerId] = useState("");
   const [salesInvoiceId, setSalesInvoiceId] = useState("");
-  const [accountingPeriodId, setAccountingPeriodId] = useState("");
-  const [engagementId, setEngagementId] = useState("");
   const [receiptNumber, setReceiptNumber] = useState("");
   const [receiptDate, setReceiptDate] = useState(todayDate());
   const [currencyCode, setCurrencyCode] = useState(defaultCurrency || "");
   const [exchangeRate, setExchangeRate] = useState("1");
   const [exchangeRateDate, setExchangeRateDate] = useState("");
-const [exchangeRateSource, setExchangeRateSource] = useState("");
-const [exchangeRateIsLocked, setExchangeRateIsLocked] = useState(false);
+  const [exchangeRateSource, setExchangeRateSource] = useState("");
+  const [exchangeRateIsLocked, setExchangeRateIsLocked] = useState(false);
   const [amountReceived, setAmountReceived] = useState("");
   const [bankCharges, setBankCharges] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
@@ -126,10 +125,10 @@ const [exchangeRateIsLocked, setExchangeRateIsLocked] = useState(false);
       }
 
       if (selectedInvoice.receivable_account_id) {
-  setReceivableAccountId(selectedInvoice.receivable_account_id);
-}
+        setReceivableAccountId(selectedInvoice.receivable_account_id);
+      }
 
-setIncomeAccountId("");
+      setIncomeAccountId("");
 
       if (
         selectedInvoice.balance_due !== null &&
@@ -156,15 +155,15 @@ setIncomeAccountId("");
           organisation_id: organisationId,
           customer_id: customerId,
           sales_invoice_id: salesInvoiceId || null,
-          accounting_period_id: accountingPeriodId || null,
-          engagement_id: engagementId || null,
+          accounting_period_id: null,
+          engagement_id: null,
           receipt_number: receiptNumber,
           receipt_date: receiptDate,
           currency_code: currencyCode || null,
           exchange_rate: exchangeRate || "1",
-          exchange_rate_date: exchangeRateDate || null,
-exchange_rate_source: exchangeRateSource || null,
-exchange_rate_is_locked: exchangeRateIsLocked,
+          exchange_rate_date: exchangeRateDate || receiptDate || null,
+          exchange_rate_source: exchangeRateSource || null,
+          exchange_rate_is_locked: exchangeRateIsLocked,
           amount_received: amountReceived,
           bank_charges: bankCharges || "0",
           payment_method: paymentMethod || null,
@@ -247,13 +246,13 @@ exchange_rate_is_locked: exchangeRateIsLocked,
         </label>
 
         <AutoNumberInput
-  label="Receipt number"
-  value={receiptNumber}
-  onChange={setReceiptNumber}
-  organisationId={organisationId}
-  documentType="CUSTOMER_RECEIPT"
-  placeholder="RCPT-0001"
-/>
+          label="Receipt number"
+          value={receiptNumber}
+          onChange={setReceiptNumber}
+          organisationId={organisationId}
+          documentType="CUSTOMER_RECEIPT"
+          placeholder="RCPT-0001"
+        />
 
         <label className="block">
           <span className="text-sm font-semibold text-slate-700">
@@ -262,65 +261,36 @@ exchange_rate_is_locked: exchangeRateIsLocked,
           <input
             type="date"
             value={receiptDate}
-            onChange={(event) => setReceiptDate(event.target.value)}
+            onChange={(event) => {
+              const nextDate = event.target.value;
+              setReceiptDate(nextDate);
+
+              if (!exchangeRateDate) {
+                setExchangeRateDate(nextDate);
+              }
+            }}
             required
             className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
           />
         </label>
 
-        <label className="block">
-          <span className="text-sm font-semibold text-slate-700">
-            Accounting period
-          </span>
-          <select
-            value={accountingPeriodId}
-            onChange={(event) => setAccountingPeriodId(event.target.value)}
-            className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
-          >
-            <option value="">No accounting period selected</option>
-            {accountingPeriods.map((period) => (
-              <option key={period.id} value={period.id}>
-                {period.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="block">
-          <span className="text-sm font-semibold text-slate-700">
-            Engagement
-          </span>
-          <select
-            value={engagementId}
-            onChange={(event) => setEngagementId(event.target.value)}
-            className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
-          >
-            <option value="">No engagement selected</option>
-            {engagements.map((engagement) => (
-              <option key={engagement.id} value={engagement.id}>
-                {engagement.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
         <CurrencySelect
-  label="Currency"
-  value={currencyCode}
-  onChange={setCurrencyCode}
-  required
-/>
+          label="Currency"
+          value={currencyCode}
+          onChange={setCurrencyCode}
+          required
+        />
 
         <ExchangeRateFields
-  exchangeRate={exchangeRate}
-  setExchangeRate={setExchangeRate}
-  exchangeRateDate={exchangeRateDate}
-  setExchangeRateDate={setExchangeRateDate}
-  exchangeRateSource={exchangeRateSource}
-  setExchangeRateSource={setExchangeRateSource}
-  exchangeRateIsLocked={exchangeRateIsLocked}
-  setExchangeRateIsLocked={setExchangeRateIsLocked}
-/>
+          exchangeRate={exchangeRate}
+          setExchangeRate={setExchangeRate}
+          exchangeRateDate={exchangeRateDate}
+          setExchangeRateDate={setExchangeRateDate}
+          exchangeRateSource={exchangeRateSource}
+          setExchangeRateSource={setExchangeRateSource}
+          exchangeRateIsLocked={exchangeRateIsLocked}
+          setExchangeRateIsLocked={setExchangeRateIsLocked}
+        />
 
         <label className="block">
           <span className="text-sm font-semibold text-slate-700">
@@ -388,50 +358,50 @@ exchange_rate_is_locked: exchangeRateIsLocked,
         </label>
 
         {salesInvoiceId ? (
-  <label className="block">
-    <span className="text-sm font-semibold text-slate-700">
-      Receivable account from linked invoice
-    </span>
-    <select
-      value={receivableAccountId}
-      onChange={(event) => setReceivableAccountId(event.target.value)}
-      className="mt-2 w-full rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
-    >
-      <option value="">No receivable account on invoice</option>
-      {receivableAccounts.map((account) => (
-        <option key={account.id} value={account.id}>
-          {account.account_code} - {account.account_name}
-        </option>
-      ))}
-    </select>
-    <p className="mt-2 text-xs leading-5 text-slate-500">
-      This is pulled from the selected invoice. It will be used later when the
-      receipt is posted against receivables.
-    </p>
-  </label>
-) : (
-  <label className="block">
-    <span className="text-sm font-semibold text-slate-700">
-      Income / Revenue account
-    </span>
-    <select
-      value={incomeAccountId}
-      onChange={(event) => setIncomeAccountId(event.target.value)}
-      required={!salesInvoiceId}
-      className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
-    >
-      <option value="">Select income account</option>
-      {incomeAccounts.map((account) => (
-        <option key={account.id} value={account.id}>
-          {account.account_code} - {account.account_name}
-        </option>
-      ))}
-    </select>
-    <p className="mt-2 text-xs leading-5 text-slate-500">
-      Use this only for direct receipts not linked to an invoice.
-    </p>
-  </label>
-)}
+          <label className="block">
+            <span className="text-sm font-semibold text-slate-700">
+              Receivable account from linked invoice
+            </span>
+            <select
+              value={receivableAccountId}
+              onChange={(event) => setReceivableAccountId(event.target.value)}
+              className="mt-2 w-full rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
+            >
+              <option value="">No receivable account on invoice</option>
+              {receivableAccounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.account_code} - {account.account_name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-2 text-xs leading-5 text-slate-500">
+              This is pulled from the selected invoice. It will be used later
+              when the receipt is posted against receivables.
+            </p>
+          </label>
+        ) : (
+          <label className="block">
+            <span className="text-sm font-semibold text-slate-700">
+              Income / Revenue account
+            </span>
+            <select
+              value={incomeAccountId}
+              onChange={(event) => setIncomeAccountId(event.target.value)}
+              required={!salesInvoiceId}
+              className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
+            >
+              <option value="">Select income account</option>
+              {incomeAccounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.account_code} - {account.account_name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-2 text-xs leading-5 text-slate-500">
+              Use this only for direct receipts not linked to an invoice.
+            </p>
+          </label>
+        )}
 
         <label className="block md:col-span-2">
           <span className="text-sm font-semibold text-slate-700">

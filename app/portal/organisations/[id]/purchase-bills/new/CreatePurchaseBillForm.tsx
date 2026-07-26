@@ -35,14 +35,15 @@ type AccountOption = {
 type PeriodOption = {
   id: string;
   name: string | null;
-  start_date: string | null;
-  end_date: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  period_type?: string | null;
 };
 
 type EngagementOption = {
   id: string;
   name: string | null;
-  engagement_type: string | null;
+  engagement_type?: string | null;
 };
 
 type BillLine = {
@@ -95,8 +96,6 @@ export default function CreatePurchaseBillForm({
   expenseAccounts,
   payableAccounts,
   taxAccounts,
-  accountingPeriods,
-  engagements,
 }: {
   organisationId: string;
   defaultCurrency?: string | null;
@@ -105,14 +104,12 @@ export default function CreatePurchaseBillForm({
   expenseAccounts: AccountOption[];
   payableAccounts: AccountOption[];
   taxAccounts: AccountOption[];
-  accountingPeriods: PeriodOption[];
-  engagements: EngagementOption[];
+  accountingPeriods?: PeriodOption[];
+  engagements?: EngagementOption[];
 }) {
   const router = useRouter();
 
   const [supplierId, setSupplierId] = useState("");
-  const [accountingPeriodId, setAccountingPeriodId] = useState("");
-  const [engagementId, setEngagementId] = useState("");
   const [billNumber, setBillNumber] = useState("");
   const [supplierInvoiceNumber, setSupplierInvoiceNumber] = useState("");
   const [billDate, setBillDate] = useState(todayDate());
@@ -120,8 +117,8 @@ export default function CreatePurchaseBillForm({
   const [currencyCode, setCurrencyCode] = useState(defaultCurrency || "");
   const [exchangeRate, setExchangeRate] = useState("1");
   const [exchangeRateDate, setExchangeRateDate] = useState("");
-const [exchangeRateSource, setExchangeRateSource] = useState("");
-const [exchangeRateIsLocked, setExchangeRateIsLocked] = useState(false);
+  const [exchangeRateSource, setExchangeRateSource] = useState("");
+  const [exchangeRateIsLocked, setExchangeRateIsLocked] = useState(false);
   const [expenseAccountId, setExpenseAccountId] = useState("");
   const [payableAccountId, setPayableAccountId] = useState("");
   const [taxAccountId, setTaxAccountId] = useState("");
@@ -223,17 +220,17 @@ const [exchangeRateIsLocked, setExchangeRateIsLocked] = useState(false);
         body: JSON.stringify({
           organisation_id: organisationId,
           supplier_id: supplierId,
-          accounting_period_id: accountingPeriodId || null,
-          engagement_id: engagementId || null,
+          accounting_period_id: null,
+          engagement_id: null,
           bill_number: billNumber,
           supplier_invoice_number: supplierInvoiceNumber || null,
           bill_date: billDate,
           due_date: dueDate || null,
           currency_code: currencyCode || null,
           exchange_rate: exchangeRate || "1",
-          exchange_rate_date: exchangeRateDate || null,
-exchange_rate_source: exchangeRateSource || null,
-exchange_rate_is_locked: exchangeRateIsLocked,
+          exchange_rate_date: exchangeRateDate || billDate || null,
+          exchange_rate_source: exchangeRateSource || null,
+          exchange_rate_is_locked: exchangeRateIsLocked,
           expense_account_id: expenseAccountId || null,
           payable_account_id: payableAccountId || null,
           tax_account_id: taxAccountId || null,
@@ -246,7 +243,8 @@ exchange_rate_is_locked: exchangeRateIsLocked,
             unit_price: line.unit_price || "0",
             discount_amount: line.discount_amount || "0",
             tax_rate: line.tax_rate || "0",
-            expense_account_id: line.expense_account_id || expenseAccountId || null,
+            expense_account_id:
+              line.expense_account_id || expenseAccountId || null,
             tax_account_id: line.tax_account_id || taxAccountId || null,
           })),
         }),
@@ -303,13 +301,13 @@ exchange_rate_is_locked: exchangeRateIsLocked,
         </label>
 
         <AutoNumberInput
-  label="Bill number"
-  value={billNumber}
-  onChange={setBillNumber}
-  organisationId={organisationId}
-  documentType="PURCHASE_BILL"
-  placeholder="BILL-0001"
-/>
+          label="Bill number"
+          value={billNumber}
+          onChange={setBillNumber}
+          organisationId={organisationId}
+          documentType="PURCHASE_BILL"
+          placeholder="BILL-0001"
+        />
 
         <label className="block">
           <span className="text-sm font-semibold text-slate-700">
@@ -330,7 +328,14 @@ exchange_rate_is_locked: exchangeRateIsLocked,
           <input
             type="date"
             value={billDate}
-            onChange={(event) => setBillDate(event.target.value)}
+            onChange={(event) => {
+              const nextDate = event.target.value;
+              setBillDate(nextDate);
+
+              if (!exchangeRateDate) {
+                setExchangeRateDate(nextDate);
+              }
+            }}
             required
             className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
           />
@@ -348,59 +353,23 @@ exchange_rate_is_locked: exchangeRateIsLocked,
           />
         </label>
 
-        <label className="block">
-          <span className="text-sm font-semibold text-slate-700">
-            Accounting period
-          </span>
-          <select
-            value={accountingPeriodId}
-            onChange={(event) => setAccountingPeriodId(event.target.value)}
-            className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
-          >
-            <option value="">No accounting period selected</option>
-            {accountingPeriods.map((period) => (
-              <option key={period.id} value={period.id}>
-                {period.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="block">
-          <span className="text-sm font-semibold text-slate-700">
-            Engagement
-          </span>
-          <select
-            value={engagementId}
-            onChange={(event) => setEngagementId(event.target.value)}
-            className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
-          >
-            <option value="">No engagement selected</option>
-            {engagements.map((engagement) => (
-              <option key={engagement.id} value={engagement.id}>
-                {engagement.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
         <CurrencySelect
-  label="Currency"
-  value={currencyCode}
-  onChange={setCurrencyCode}
-  required
-/>
+          label="Currency"
+          value={currencyCode}
+          onChange={setCurrencyCode}
+          required
+        />
 
         <ExchangeRateFields
-  exchangeRate={exchangeRate}
-  setExchangeRate={setExchangeRate}
-  exchangeRateDate={exchangeRateDate}
-  setExchangeRateDate={setExchangeRateDate}
-  exchangeRateSource={exchangeRateSource}
-  setExchangeRateSource={setExchangeRateSource}
-  exchangeRateIsLocked={exchangeRateIsLocked}
-  setExchangeRateIsLocked={setExchangeRateIsLocked}
-/>
+          exchangeRate={exchangeRate}
+          setExchangeRate={setExchangeRate}
+          exchangeRateDate={exchangeRateDate}
+          setExchangeRateDate={setExchangeRateDate}
+          exchangeRateSource={exchangeRateSource}
+          setExchangeRateSource={setExchangeRateSource}
+          exchangeRateIsLocked={exchangeRateIsLocked}
+          setExchangeRateIsLocked={setExchangeRateIsLocked}
+        />
 
         <label className="block">
           <span className="text-sm font-semibold text-slate-700">

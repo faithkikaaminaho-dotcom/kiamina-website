@@ -31,6 +31,9 @@ type AccountOption = {
 type PeriodOption = {
   id: string;
   name: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  period_type?: string | null;
 };
 
 type EngagementOption = {
@@ -57,8 +60,6 @@ export default function CreateCapitalCallForm({
   receivableAccounts,
   equityAccounts,
   liabilityAccounts,
-  accountingPeriods,
-  engagements,
 }: {
   organisationId: string;
   defaultCurrency?: string | null;
@@ -66,22 +67,20 @@ export default function CreateCapitalCallForm({
   receivableAccounts: AccountOption[];
   equityAccounts: AccountOption[];
   liabilityAccounts: AccountOption[];
-  accountingPeriods: PeriodOption[];
-  engagements: EngagementOption[];
+  accountingPeriods?: PeriodOption[];
+  engagements?: EngagementOption[];
 }) {
   const router = useRouter();
 
   const [investorId, setInvestorId] = useState("");
-  const [accountingPeriodId, setAccountingPeriodId] = useState("");
-  const [engagementId, setEngagementId] = useState("");
   const [callNumber, setCallNumber] = useState("");
   const [callDate, setCallDate] = useState(todayDate());
   const [dueDate, setDueDate] = useState("");
   const [currencyCode, setCurrencyCode] = useState(defaultCurrency || "");
   const [exchangeRate, setExchangeRate] = useState("1");
   const [exchangeRateDate, setExchangeRateDate] = useState("");
-const [exchangeRateSource, setExchangeRateSource] = useState("");
-const [exchangeRateIsLocked, setExchangeRateIsLocked] = useState(false);
+  const [exchangeRateSource, setExchangeRateSource] = useState("");
+  const [exchangeRateIsLocked, setExchangeRateIsLocked] = useState(false);
   const [committedAmount, setCommittedAmount] = useState("");
   const [calledAmount, setCalledAmount] = useState("");
   const [fundingType, setFundingType] = useState("");
@@ -141,16 +140,16 @@ const [exchangeRateIsLocked, setExchangeRateIsLocked] = useState(false);
         body: JSON.stringify({
           organisation_id: organisationId,
           investor_id: investorId,
-          accounting_period_id: accountingPeriodId || null,
-          engagement_id: engagementId || null,
+          accounting_period_id: null,
+          engagement_id: null,
           call_number: callNumber,
           call_date: callDate,
           due_date: dueDate || null,
           currency_code: currencyCode || null,
           exchange_rate: exchangeRate || "1",
-          exchange_rate_date: exchangeRateDate || null,
-exchange_rate_source: exchangeRateSource || null,
-exchange_rate_is_locked: exchangeRateIsLocked,
+          exchange_rate_date: exchangeRateDate || callDate || null,
+          exchange_rate_source: exchangeRateSource || null,
+          exchange_rate_is_locked: exchangeRateIsLocked,
           committed_amount: committedAmount || "0",
           called_amount: calledAmount,
           funding_type: fundingType || null,
@@ -220,13 +219,13 @@ exchange_rate_is_locked: exchangeRateIsLocked,
         </label>
 
         <AutoNumberInput
-  label="Capital call number"
-  value={callNumber}
-  onChange={setCallNumber}
-  organisationId={organisationId}
-  documentType="CAPITAL_CALL"
-  placeholder="CAPCALL-0001"
-/>
+          label="Capital call number"
+          value={callNumber}
+          onChange={setCallNumber}
+          organisationId={organisationId}
+          documentType="CAPITAL_CALL"
+          placeholder="CAPCALL-0001"
+        />
 
         <label className="block">
           <span className="text-sm font-semibold text-slate-700">
@@ -235,7 +234,14 @@ exchange_rate_is_locked: exchangeRateIsLocked,
           <input
             type="date"
             value={callDate}
-            onChange={(event) => setCallDate(event.target.value)}
+            onChange={(event) => {
+              const nextDate = event.target.value;
+              setCallDate(nextDate);
+
+              if (!exchangeRateDate) {
+                setExchangeRateDate(nextDate);
+              }
+            }}
             required
             className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
           />
@@ -253,59 +259,23 @@ exchange_rate_is_locked: exchangeRateIsLocked,
           />
         </label>
 
-        <label className="block">
-          <span className="text-sm font-semibold text-slate-700">
-            Accounting period
-          </span>
-          <select
-            value={accountingPeriodId}
-            onChange={(event) => setAccountingPeriodId(event.target.value)}
-            className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
-          >
-            <option value="">No accounting period selected</option>
-            {accountingPeriods.map((period) => (
-              <option key={period.id} value={period.id}>
-                {period.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="block">
-          <span className="text-sm font-semibold text-slate-700">
-            Engagement
-          </span>
-          <select
-            value={engagementId}
-            onChange={(event) => setEngagementId(event.target.value)}
-            className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
-          >
-            <option value="">No engagement selected</option>
-            {engagements.map((engagement) => (
-              <option key={engagement.id} value={engagement.id}>
-                {engagement.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
         <CurrencySelect
-  label="Currency"
-  value={currencyCode}
-  onChange={setCurrencyCode}
-  required
-/>
+          label="Currency"
+          value={currencyCode}
+          onChange={setCurrencyCode}
+          required
+        />
 
         <ExchangeRateFields
-  exchangeRate={exchangeRate}
-  setExchangeRate={setExchangeRate}
-  exchangeRateDate={exchangeRateDate}
-  setExchangeRateDate={setExchangeRateDate}
-  exchangeRateSource={exchangeRateSource}
-  setExchangeRateSource={setExchangeRateSource}
-  exchangeRateIsLocked={exchangeRateIsLocked}
-  setExchangeRateIsLocked={setExchangeRateIsLocked}
-/>
+          exchangeRate={exchangeRate}
+          setExchangeRate={setExchangeRate}
+          exchangeRateDate={exchangeRateDate}
+          setExchangeRateDate={setExchangeRateDate}
+          exchangeRateSource={exchangeRateSource}
+          setExchangeRateSource={setExchangeRateSource}
+          exchangeRateIsLocked={exchangeRateIsLocked}
+          setExchangeRateIsLocked={setExchangeRateIsLocked}
+        />
 
         <label className="block">
           <span className="text-sm font-semibold text-slate-700">

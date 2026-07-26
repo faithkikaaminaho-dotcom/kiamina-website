@@ -35,14 +35,15 @@ type AccountOption = {
 type PeriodOption = {
   id: string;
   name: string | null;
-  start_date: string | null;
-  end_date: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  period_type?: string | null;
 };
 
 type EngagementOption = {
   id: string;
   name: string | null;
-  engagement_type: string | null;
+  engagement_type?: string | null;
 };
 
 type InvoiceLine = {
@@ -95,8 +96,6 @@ export default function CreateSalesInvoiceForm({
   revenueAccounts,
   receivableAccounts,
   taxAccounts,
-  accountingPeriods,
-  engagements,
 }: {
   organisationId: string;
   defaultCurrency?: string | null;
@@ -105,14 +104,12 @@ export default function CreateSalesInvoiceForm({
   revenueAccounts: AccountOption[];
   receivableAccounts: AccountOption[];
   taxAccounts: AccountOption[];
-  accountingPeriods: PeriodOption[];
-  engagements: EngagementOption[];
+  accountingPeriods?: PeriodOption[];
+  engagements?: EngagementOption[];
 }) {
   const router = useRouter();
 
   const [customerId, setCustomerId] = useState("");
-  const [accountingPeriodId, setAccountingPeriodId] = useState("");
-  const [engagementId, setEngagementId] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(todayDate());
   const [dueDate, setDueDate] = useState(addDays(30));
@@ -222,14 +219,14 @@ export default function CreateSalesInvoiceForm({
         body: JSON.stringify({
           organisation_id: organisationId,
           customer_id: customerId,
-          accounting_period_id: accountingPeriodId || null,
-          engagement_id: engagementId || null,
+          accounting_period_id: null,
+          engagement_id: null,
           invoice_number: invoiceNumber,
           invoice_date: invoiceDate,
           due_date: dueDate || null,
           currency_code: currencyCode || null,
           exchange_rate: exchangeRate || "1",
-          exchange_rate_date: exchangeRateDate || null,
+          exchange_rate_date: exchangeRateDate || invoiceDate || null,
           exchange_rate_source: exchangeRateSource || null,
           exchange_rate_is_locked: exchangeRateIsLocked,
           revenue_account_id: revenueAccountId || null,
@@ -244,7 +241,8 @@ export default function CreateSalesInvoiceForm({
             unit_price: line.unit_price || "0",
             discount_amount: line.discount_amount || "0",
             tax_rate: line.tax_rate || "0",
-            revenue_account_id: line.revenue_account_id || revenueAccountId || null,
+            revenue_account_id:
+              line.revenue_account_id || revenueAccountId || null,
             tax_account_id: line.tax_account_id || taxAccountId || null,
           })),
         }),
@@ -301,13 +299,13 @@ export default function CreateSalesInvoiceForm({
         </label>
 
         <AutoNumberInput
-  label="Invoice number"
-  value={invoiceNumber}
-  onChange={setInvoiceNumber}
-  organisationId={organisationId}
-  documentType="SALES_INVOICE"
-  placeholder="INV-0001"
-/>
+          label="Invoice number"
+          value={invoiceNumber}
+          onChange={setInvoiceNumber}
+          organisationId={organisationId}
+          documentType="SALES_INVOICE"
+          placeholder="INV-0001"
+        />
 
         <label className="block">
           <span className="text-sm font-semibold text-slate-700">
@@ -316,7 +314,14 @@ export default function CreateSalesInvoiceForm({
           <input
             type="date"
             value={invoiceDate}
-            onChange={(event) => setInvoiceDate(event.target.value)}
+            onChange={(event) => {
+              const nextDate = event.target.value;
+              setInvoiceDate(nextDate);
+
+              if (!exchangeRateDate) {
+                setExchangeRateDate(nextDate);
+              }
+            }}
             required
             className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
           />
@@ -334,59 +339,23 @@ export default function CreateSalesInvoiceForm({
           />
         </label>
 
-        <label className="block">
-          <span className="text-sm font-semibold text-slate-700">
-            Accounting period
-          </span>
-          <select
-            value={accountingPeriodId}
-            onChange={(event) => setAccountingPeriodId(event.target.value)}
-            className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
-          >
-            <option value="">No accounting period selected</option>
-            {accountingPeriods.map((period) => (
-              <option key={period.id} value={period.id}>
-                {period.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="block">
-          <span className="text-sm font-semibold text-slate-700">
-            Engagement
-          </span>
-          <select
-            value={engagementId}
-            onChange={(event) => setEngagementId(event.target.value)}
-            className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
-          >
-            <option value="">No engagement selected</option>
-            {engagements.map((engagement) => (
-              <option key={engagement.id} value={engagement.id}>
-                {engagement.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
         <CurrencySelect
-  label="Currency"
-  value={currencyCode}
-  onChange={setCurrencyCode}
-  required
-/>
+          label="Currency"
+          value={currencyCode}
+          onChange={setCurrencyCode}
+          required
+        />
 
         <ExchangeRateFields
-  exchangeRate={exchangeRate}
-  setExchangeRate={setExchangeRate}
-  exchangeRateDate={exchangeRateDate}
-  setExchangeRateDate={setExchangeRateDate}
-  exchangeRateSource={exchangeRateSource}
-  setExchangeRateSource={setExchangeRateSource}
-  exchangeRateIsLocked={exchangeRateIsLocked}
-  setExchangeRateIsLocked={setExchangeRateIsLocked}
-/>
+          exchangeRate={exchangeRate}
+          setExchangeRate={setExchangeRate}
+          exchangeRateDate={exchangeRateDate}
+          setExchangeRateDate={setExchangeRateDate}
+          exchangeRateSource={exchangeRateSource}
+          setExchangeRateSource={setExchangeRateSource}
+          exchangeRateIsLocked={exchangeRateIsLocked}
+          setExchangeRateIsLocked={setExchangeRateIsLocked}
+        />
 
         <label className="block">
           <span className="text-sm font-semibold text-slate-700">

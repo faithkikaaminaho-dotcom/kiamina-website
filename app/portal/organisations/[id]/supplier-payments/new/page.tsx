@@ -108,10 +108,12 @@ export default async function NewSupplierPaymentPage({
     .order("account_code", { ascending: true });
 
   const { data: accountingPeriods } = await supabase
-    .from("accounting_periods")
-    .select("id, name")
-    .eq("organisation_id", id)
-    .order("start_date", { ascending: false });
+  .from("accounting_periods")
+  .select("id, name, start_date, end_date, period_type")
+  .eq("organisation_id", id)
+  .not("name", "ilike", "%management%")
+  .not("name", "ilike", "%report%")
+  .order("start_date", { ascending: false });
 
   const { data: engagements } = await supabase
     .from("engagements")

@@ -37,6 +37,9 @@ type AccountOption = {
 type PeriodOption = {
   id: string;
   name: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  period_type?: string | null;
 };
 
 type EngagementOption = {
@@ -64,8 +67,6 @@ export default function CreateSupplierPaymentForm({
   bankAccounts,
   payableAccounts,
   expenseAccounts,
-  accountingPeriods,
-  engagements,
 }: {
   organisationId: string;
   defaultCurrency?: string | null;
@@ -74,22 +75,20 @@ export default function CreateSupplierPaymentForm({
   bankAccounts: AccountOption[];
   payableAccounts: AccountOption[];
   expenseAccounts: AccountOption[];
-  accountingPeriods: PeriodOption[];
-  engagements: EngagementOption[];
+  accountingPeriods?: PeriodOption[];
+  engagements?: EngagementOption[];
 }) {
   const router = useRouter();
 
   const [supplierId, setSupplierId] = useState("");
   const [purchaseBillId, setPurchaseBillId] = useState("");
-  const [accountingPeriodId, setAccountingPeriodId] = useState("");
-  const [engagementId, setEngagementId] = useState("");
   const [paymentNumber, setPaymentNumber] = useState("");
   const [paymentDate, setPaymentDate] = useState(todayDate());
   const [currencyCode, setCurrencyCode] = useState(defaultCurrency || "");
   const [exchangeRate, setExchangeRate] = useState("1");
   const [exchangeRateDate, setExchangeRateDate] = useState("");
-const [exchangeRateSource, setExchangeRateSource] = useState("");
-const [exchangeRateIsLocked, setExchangeRateIsLocked] = useState(false);
+  const [exchangeRateSource, setExchangeRateSource] = useState("");
+  const [exchangeRateIsLocked, setExchangeRateIsLocked] = useState(false);
   const [amountPaid, setAmountPaid] = useState("");
   const [bankCharges, setBankCharges] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
@@ -161,15 +160,15 @@ const [exchangeRateIsLocked, setExchangeRateIsLocked] = useState(false);
           organisation_id: organisationId,
           supplier_id: supplierId,
           purchase_bill_id: purchaseBillId || null,
-          accounting_period_id: accountingPeriodId || null,
-          engagement_id: engagementId || null,
+          accounting_period_id: null,
+          engagement_id: null,
           payment_number: paymentNumber,
           payment_date: paymentDate,
           currency_code: currencyCode || null,
           exchange_rate: exchangeRate || "1",
-          exchange_rate_date: exchangeRateDate || null,
-exchange_rate_source: exchangeRateSource || null,
-exchange_rate_is_locked: exchangeRateIsLocked,
+          exchange_rate_date: exchangeRateDate || paymentDate || null,
+          exchange_rate_source: exchangeRateSource || null,
+          exchange_rate_is_locked: exchangeRateIsLocked,
           amount_paid: amountPaid,
           bank_charges: bankCharges || "0",
           payment_method: paymentMethod || null,
@@ -252,13 +251,13 @@ exchange_rate_is_locked: exchangeRateIsLocked,
         </label>
 
         <AutoNumberInput
-  label="Payment number"
-  value={paymentNumber}
-  onChange={setPaymentNumber}
-  organisationId={organisationId}
-  documentType="SUPPLIER_PAYMENT"
-  placeholder="PAY-0001"
-/>
+          label="Payment number"
+          value={paymentNumber}
+          onChange={setPaymentNumber}
+          organisationId={organisationId}
+          documentType="SUPPLIER_PAYMENT"
+          placeholder="PAY-0001"
+        />
 
         <label className="block">
           <span className="text-sm font-semibold text-slate-700">
@@ -267,65 +266,36 @@ exchange_rate_is_locked: exchangeRateIsLocked,
           <input
             type="date"
             value={paymentDate}
-            onChange={(event) => setPaymentDate(event.target.value)}
+            onChange={(event) => {
+              const nextDate = event.target.value;
+              setPaymentDate(nextDate);
+
+              if (!exchangeRateDate) {
+                setExchangeRateDate(nextDate);
+              }
+            }}
             required
             className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
           />
         </label>
 
-        <label className="block">
-          <span className="text-sm font-semibold text-slate-700">
-            Accounting period
-          </span>
-          <select
-            value={accountingPeriodId}
-            onChange={(event) => setAccountingPeriodId(event.target.value)}
-            className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
-          >
-            <option value="">No accounting period selected</option>
-            {accountingPeriods.map((period) => (
-              <option key={period.id} value={period.id}>
-                {period.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="block">
-          <span className="text-sm font-semibold text-slate-700">
-            Engagement
-          </span>
-          <select
-            value={engagementId}
-            onChange={(event) => setEngagementId(event.target.value)}
-            className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
-          >
-            <option value="">No engagement selected</option>
-            {engagements.map((engagement) => (
-              <option key={engagement.id} value={engagement.id}>
-                {engagement.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
         <CurrencySelect
-  label="Currency"
-  value={currencyCode}
-  onChange={setCurrencyCode}
-  required
-/>
+          label="Currency"
+          value={currencyCode}
+          onChange={setCurrencyCode}
+          required
+        />
 
         <ExchangeRateFields
-  exchangeRate={exchangeRate}
-  setExchangeRate={setExchangeRate}
-  exchangeRateDate={exchangeRateDate}
-  setExchangeRateDate={setExchangeRateDate}
-  exchangeRateSource={exchangeRateSource}
-  setExchangeRateSource={setExchangeRateSource}
-  exchangeRateIsLocked={exchangeRateIsLocked}
-  setExchangeRateIsLocked={setExchangeRateIsLocked}
-/>
+          exchangeRate={exchangeRate}
+          setExchangeRate={setExchangeRate}
+          exchangeRateDate={exchangeRateDate}
+          setExchangeRateDate={setExchangeRateDate}
+          exchangeRateSource={exchangeRateSource}
+          setExchangeRateSource={setExchangeRateSource}
+          exchangeRateIsLocked={exchangeRateIsLocked}
+          setExchangeRateIsLocked={setExchangeRateIsLocked}
+        />
 
         <label className="block">
           <span className="text-sm font-semibold text-slate-700">

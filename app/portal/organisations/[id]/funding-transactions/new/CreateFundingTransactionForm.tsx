@@ -44,6 +44,9 @@ type AccountOption = {
 type PeriodOption = {
   id: string;
   name: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  period_type?: string | null;
 };
 
 type EngagementOption = {
@@ -64,9 +67,11 @@ function toNumber(value: string, fallback = 0) {
 }
 
 function needsEquityAccount(transactionType: string) {
-  return ["CAPITAL_CONTRIBUTION", "CAPITAL_CALL_RECEIPT", "INVESTOR_FUNDING"].includes(
-    transactionType
-  );
+  return [
+    "CAPITAL_CONTRIBUTION",
+    "CAPITAL_CALL_RECEIPT",
+    "INVESTOR_FUNDING",
+  ].includes(transactionType);
 }
 
 function needsLiabilityAccount(transactionType: string) {
@@ -100,8 +105,6 @@ export default function CreateFundingTransactionForm({
   liabilityAccounts,
   incomeAccounts,
   interestExpenseAccounts,
-  accountingPeriods,
-  engagements,
 }: {
   organisationId: string;
   defaultCurrency?: string | null;
@@ -112,23 +115,21 @@ export default function CreateFundingTransactionForm({
   liabilityAccounts: AccountOption[];
   incomeAccounts: AccountOption[];
   interestExpenseAccounts: AccountOption[];
-  accountingPeriods: PeriodOption[];
-  engagements: EngagementOption[];
+  accountingPeriods?: PeriodOption[];
+  engagements?: EngagementOption[];
 }) {
   const router = useRouter();
 
   const [investorId, setInvestorId] = useState("");
   const [capitalCallId, setCapitalCallId] = useState("");
-  const [accountingPeriodId, setAccountingPeriodId] = useState("");
-  const [engagementId, setEngagementId] = useState("");
   const [transactionNumber, setTransactionNumber] = useState("");
   const [transactionDate, setTransactionDate] = useState(todayDate());
   const [transactionType, setTransactionType] = useState("");
   const [currencyCode, setCurrencyCode] = useState(defaultCurrency || "");
   const [exchangeRate, setExchangeRate] = useState("1");
   const [exchangeRateDate, setExchangeRateDate] = useState("");
-const [exchangeRateSource, setExchangeRateSource] = useState("");
-const [exchangeRateIsLocked, setExchangeRateIsLocked] = useState(false);
+  const [exchangeRateSource, setExchangeRateSource] = useState("");
+  const [exchangeRateIsLocked, setExchangeRateIsLocked] = useState(false);
   const [amount, setAmount] = useState("");
   const [bankCharges, setBankCharges] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
@@ -195,7 +196,10 @@ const [exchangeRateIsLocked, setExchangeRateIsLocked] = useState(false);
       setFundingPurpose(call.funding_purpose);
     }
 
-    if (call.outstanding_amount !== null && call.outstanding_amount !== undefined) {
+    if (
+      call.outstanding_amount !== null &&
+      call.outstanding_amount !== undefined
+    ) {
       setAmount(String(call.outstanding_amount));
     }
 
@@ -228,16 +232,16 @@ const [exchangeRateIsLocked, setExchangeRateIsLocked] = useState(false);
           organisation_id: organisationId,
           investor_id: investorId || null,
           capital_call_id: capitalCallId || null,
-          accounting_period_id: accountingPeriodId || null,
-          engagement_id: engagementId || null,
+          accounting_period_id: null,
+          engagement_id: null,
           transaction_number: transactionNumber,
           transaction_date: transactionDate,
           transaction_type: transactionType,
           currency_code: currencyCode || null,
           exchange_rate: exchangeRate || "1",
-          exchange_rate_date: exchangeRateDate || null,
-exchange_rate_source: exchangeRateSource || null,
-exchange_rate_is_locked: exchangeRateIsLocked,
+          exchange_rate_date: exchangeRateDate || transactionDate || null,
+          exchange_rate_source: exchangeRateSource || null,
+          exchange_rate_is_locked: exchangeRateIsLocked,
           amount,
           bank_charges: bankCharges || "0",
           payment_method: paymentMethod || null,
@@ -251,7 +255,9 @@ exchange_rate_is_locked: exchangeRateIsLocked,
           income_account_id: needsIncomeAccount(transactionType)
             ? incomeAccountId || null
             : null,
-          interest_expense_account_id: needsInterestExpenseAccount(transactionType)
+          interest_expense_account_id: needsInterestExpenseAccount(
+            transactionType
+          )
             ? interestExpenseAccountId || null
             : null,
           reference_number: referenceNumber || null,
@@ -312,8 +318,11 @@ exchange_rate_is_locked: exchangeRateIsLocked,
 
           {selectedCapitalCall ? (
             <p className="mt-2 text-xs leading-5 text-slate-500">
-              Outstanding call: {selectedCapitalCall.currency_code || currencyCode || "—"}{" "}
-              {Number(selectedCapitalCall.outstanding_amount || 0).toLocaleString()}
+              Outstanding call:{" "}
+              {selectedCapitalCall.currency_code || currencyCode || "—"}{" "}
+              {Number(
+                selectedCapitalCall.outstanding_amount || 0
+              ).toLocaleString()}
             </p>
           ) : null}
         </label>
@@ -338,13 +347,13 @@ exchange_rate_is_locked: exchangeRateIsLocked,
         </label>
 
         <AutoNumberInput
-  label="Transaction number"
-  value={transactionNumber}
-  onChange={setTransactionNumber}
-  organisationId={organisationId}
-  documentType="FUNDING_TRANSACTION"
-  placeholder="FUND-0001"
-/>
+          label="Transaction number"
+          value={transactionNumber}
+          onChange={setTransactionNumber}
+          organisationId={organisationId}
+          documentType="FUNDING_TRANSACTION"
+          placeholder="FUND-0001"
+        />
 
         <label className="block">
           <span className="text-sm font-semibold text-slate-700">
@@ -353,7 +362,14 @@ exchange_rate_is_locked: exchangeRateIsLocked,
           <input
             type="date"
             value={transactionDate}
-            onChange={(event) => setTransactionDate(event.target.value)}
+            onChange={(event) => {
+              const nextDate = event.target.value;
+              setTransactionDate(nextDate);
+
+              if (!exchangeRateDate) {
+                setExchangeRateDate(nextDate);
+              }
+            }}
             required
             className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
           />
@@ -384,64 +400,26 @@ exchange_rate_is_locked: exchangeRateIsLocked,
           </select>
         </label>
 
-        <label className="block">
-          <span className="text-sm font-semibold text-slate-700">
-            Accounting period
-          </span>
-          <select
-            value={accountingPeriodId}
-            onChange={(event) => setAccountingPeriodId(event.target.value)}
-            className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
-          >
-            <option value="">No accounting period selected</option>
-            {accountingPeriods.map((period) => (
-              <option key={period.id} value={period.id}>
-                {period.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="block">
-          <span className="text-sm font-semibold text-slate-700">
-            Engagement
-          </span>
-          <select
-            value={engagementId}
-            onChange={(event) => setEngagementId(event.target.value)}
-            className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
-          >
-            <option value="">No engagement selected</option>
-            {engagements.map((engagement) => (
-              <option key={engagement.id} value={engagement.id}>
-                {engagement.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
         <CurrencySelect
-  label="Currency"
-  value={currencyCode}
-  onChange={setCurrencyCode}
-  required
-/>
+          label="Currency"
+          value={currencyCode}
+          onChange={setCurrencyCode}
+          required
+        />
 
         <ExchangeRateFields
-  exchangeRate={exchangeRate}
-  setExchangeRate={setExchangeRate}
-  exchangeRateDate={exchangeRateDate}
-  setExchangeRateDate={setExchangeRateDate}
-  exchangeRateSource={exchangeRateSource}
-  setExchangeRateSource={setExchangeRateSource}
-  exchangeRateIsLocked={exchangeRateIsLocked}
-  setExchangeRateIsLocked={setExchangeRateIsLocked}
-/>
+          exchangeRate={exchangeRate}
+          setExchangeRate={setExchangeRate}
+          exchangeRateDate={exchangeRateDate}
+          setExchangeRateDate={setExchangeRateDate}
+          exchangeRateSource={exchangeRateSource}
+          setExchangeRateSource={setExchangeRateSource}
+          exchangeRateIsLocked={exchangeRateIsLocked}
+          setExchangeRateIsLocked={setExchangeRateIsLocked}
+        />
 
         <label className="block">
-          <span className="text-sm font-semibold text-slate-700">
-            Amount
-          </span>
+          <span className="text-sm font-semibold text-slate-700">Amount</span>
           <input
             type="number"
             step="0.01"
