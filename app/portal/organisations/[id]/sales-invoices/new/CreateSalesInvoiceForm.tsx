@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import AutoNumberInput from "@/app/portal/components/AutoNumberInput";
 import CurrencySelect from "@/app/portal/components/CurrencySelect";
+import ExchangeRateFields from "@/app/portal/components/ExchangeRateFields";
 
 type CustomerOption = {
   id: string;
@@ -117,6 +118,9 @@ export default function CreateSalesInvoiceForm({
   const [dueDate, setDueDate] = useState(addDays(30));
   const [currencyCode, setCurrencyCode] = useState(defaultCurrency || "");
   const [exchangeRate, setExchangeRate] = useState("1");
+  const [exchangeRateDate, setExchangeRateDate] = useState("");
+  const [exchangeRateSource, setExchangeRateSource] = useState("");
+  const [exchangeRateIsLocked, setExchangeRateIsLocked] = useState(false);
   const [revenueAccountId, setRevenueAccountId] = useState("");
   const [receivableAccountId, setReceivableAccountId] = useState("");
   const [taxAccountId, setTaxAccountId] = useState("");
@@ -225,6 +229,9 @@ export default function CreateSalesInvoiceForm({
           due_date: dueDate || null,
           currency_code: currencyCode || null,
           exchange_rate: exchangeRate || "1",
+          exchange_rate_date: exchangeRateDate || null,
+          exchange_rate_source: exchangeRateSource || null,
+          exchange_rate_is_locked: exchangeRateIsLocked,
           revenue_account_id: revenueAccountId || null,
           receivable_account_id: receivableAccountId || null,
           tax_account_id: taxAccountId || null,
@@ -370,19 +377,16 @@ export default function CreateSalesInvoiceForm({
   required
 />
 
-        <label className="block">
-          <span className="text-sm font-semibold text-slate-700">
-            Exchange rate
-          </span>
-          <input
-            type="number"
-            step="0.000001"
-            value={exchangeRate}
-            onChange={(event) => setExchangeRate(event.target.value)}
-            placeholder="1"
-            className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
-          />
-        </label>
+        <ExchangeRateFields
+  exchangeRate={exchangeRate}
+  setExchangeRate={setExchangeRate}
+  exchangeRateDate={exchangeRateDate}
+  setExchangeRateDate={setExchangeRateDate}
+  exchangeRateSource={exchangeRateSource}
+  setExchangeRateSource={setExchangeRateSource}
+  exchangeRateIsLocked={exchangeRateIsLocked}
+  setExchangeRateIsLocked={setExchangeRateIsLocked}
+/>
 
         <label className="block">
           <span className="text-sm font-semibold text-slate-700">

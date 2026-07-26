@@ -63,7 +63,11 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     const organisationId = String(body.organisation_id || "").trim();
-    const investorId = body.investor_id ? String(body.investor_id).trim() : null;
+
+    const investorId = body.investor_id
+      ? String(body.investor_id).trim()
+      : null;
+
     const capitalCallId = body.capital_call_id
       ? String(body.capital_call_id).trim()
       : null;
@@ -77,12 +81,14 @@ export async function POST(request: Request) {
       : null;
 
     const transactionNumber = await reserveDocumentNumber({
-  supabase,
-  organisationId,
-  documentType: "FUNDING_TRANSACTION",
-  providedNumber: body.transaction_number,
-});
+      supabase,
+      organisationId,
+      documentType: "FUNDING_TRANSACTION",
+      providedNumber: body.transaction_number,
+    });
+
     const transactionDate = String(body.transaction_date || "").trim();
+
     const transactionType = String(body.transaction_type || "")
       .trim()
       .toUpperCase();
@@ -92,9 +98,25 @@ export async function POST(request: Request) {
       : null;
 
     const exchangeRate = toNumber(body.exchange_rate, 1);
+
+    const exchangeRateDate = body.exchange_rate_date
+      ? String(body.exchange_rate_date).trim()
+      : null;
+
+    const exchangeRateSource = body.exchange_rate_source
+      ? String(body.exchange_rate_source).trim()
+      : null;
+
+    const exchangeRateIsLocked = Boolean(body.exchange_rate_is_locked);
+
     const amount = toNumber(body.amount, 0);
     const bankCharges = toNumber(body.bank_charges, 0);
-    const netAmount = Number(Math.max(amount - bankCharges, 0).toFixed(2));
+
+    const netAmount =
+      transactionType === "LOAN_REPAYMENT" ||
+      transactionType === "INTEREST_PAYMENT"
+        ? Number((amount + bankCharges).toFixed(2))
+        : Number(Math.max(amount - bankCharges, 0).toFixed(2));
 
     const paymentMethod = body.payment_method
       ? String(body.payment_method).trim()
@@ -124,7 +146,11 @@ export async function POST(request: Request) {
       ? String(body.reference_number).trim()
       : null;
 
-    const purpose = body.purpose ? String(body.purpose).trim() : null;
+    const purpose =
+      body.purpose || body.funding_purpose
+        ? String(body.purpose || body.funding_purpose).trim()
+        : null;
+
     const narration = body.narration ? String(body.narration).trim() : null;
 
     const internalNotes = body.internal_notes
@@ -232,6 +258,9 @@ export async function POST(request: Request) {
           transaction_type: transactionType,
           currency_code: currencyCode || organisation.base_currency_code,
           exchange_rate: exchangeRate,
+          exchange_rate_date: exchangeRateDate,
+          exchange_rate_source: exchangeRateSource,
+          exchange_rate_is_locked: exchangeRateIsLocked,
           amount,
           bank_charges: bankCharges,
           net_amount: netAmount,
@@ -279,6 +308,11 @@ export async function POST(request: Request) {
           amount,
           bank_charges: bankCharges,
           net_amount: netAmount,
+          currency_code: currencyCode || organisation.base_currency_code,
+          exchange_rate: exchangeRate,
+          exchange_rate_date: exchangeRateDate,
+          exchange_rate_source: exchangeRateSource,
+          exchange_rate_is_locked: exchangeRateIsLocked,
           status: "DRAFT",
         },
       });

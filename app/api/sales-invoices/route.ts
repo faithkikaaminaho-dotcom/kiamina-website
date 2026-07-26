@@ -126,19 +126,22 @@ export async function POST(request: Request) {
 
     const organisationId = String(body.organisation_id || "").trim();
     const customerId = body.customer_id ? String(body.customer_id).trim() : null;
+
     const accountingPeriodId = body.accounting_period_id
       ? String(body.accounting_period_id).trim()
       : null;
+
     const engagementId = body.engagement_id
       ? String(body.engagement_id).trim()
       : null;
 
     const invoiceNumber = await reserveDocumentNumber({
-  supabase,
-  organisationId,
-  documentType: "SALES_INVOICE",
-  providedNumber: body.invoice_number,
-});
+      supabase,
+      organisationId,
+      documentType: "SALES_INVOICE",
+      providedNumber: body.invoice_number,
+    });
+
     const invoiceDate = String(body.invoice_date || "").trim();
     const dueDate = body.due_date ? String(body.due_date).trim() : null;
 
@@ -147,6 +150,16 @@ export async function POST(request: Request) {
       : null;
 
     const exchangeRate = toNumber(body.exchange_rate, 1);
+
+    const exchangeRateDate = body.exchange_rate_date
+      ? String(body.exchange_rate_date).trim()
+      : null;
+
+    const exchangeRateSource = body.exchange_rate_source
+      ? String(body.exchange_rate_source).trim()
+      : null;
+
+    const exchangeRateIsLocked = Boolean(body.exchange_rate_is_locked);
 
     const revenueAccountId = body.revenue_account_id
       ? String(body.revenue_account_id).trim()
@@ -161,6 +174,7 @@ export async function POST(request: Request) {
       : null;
 
     const notes = body.notes ? String(body.notes).trim() : null;
+
     const internalNotes = body.internal_notes
       ? String(body.internal_notes).trim()
       : null;
@@ -275,6 +289,9 @@ export async function POST(request: Request) {
         due_date: dueDate,
         currency_code: currencyCode || organisation.base_currency_code,
         exchange_rate: exchangeRate,
+        exchange_rate_date: exchangeRateDate,
+        exchange_rate_source: exchangeRateSource,
+        exchange_rate_is_locked: exchangeRateIsLocked,
         subtotal_amount: subtotalAmount,
         tax_amount: taxAmount,
         discount_amount: discountAmount,
@@ -330,6 +347,10 @@ export async function POST(request: Request) {
           customer_name: customer.customer_name,
           total_amount: totalAmount,
           currency_code: currencyCode || organisation.base_currency_code,
+          exchange_rate: exchangeRate,
+          exchange_rate_date: exchangeRateDate,
+          exchange_rate_source: exchangeRateSource,
+          exchange_rate_is_locked: exchangeRateIsLocked,
           status: "DRAFT",
           removed_invoice_columns: invoiceResult.removedColumns,
         },

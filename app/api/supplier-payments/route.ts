@@ -49,7 +49,11 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     const organisationId = String(body.organisation_id || "").trim();
-    const supplierId = body.supplier_id ? String(body.supplier_id).trim() : null;
+
+    const supplierId = body.supplier_id
+      ? String(body.supplier_id).trim()
+      : null;
+
     const purchaseBillId = body.purchase_bill_id
       ? String(body.purchase_bill_id).trim()
       : null;
@@ -63,11 +67,12 @@ export async function POST(request: Request) {
       : null;
 
     const paymentNumber = await reserveDocumentNumber({
-  supabase,
-  organisationId,
-  documentType: "SUPPLIER_PAYMENT",
-  providedNumber: body.payment_number,
-});
+      supabase,
+      organisationId,
+      documentType: "SUPPLIER_PAYMENT",
+      providedNumber: body.payment_number,
+    });
+
     const paymentDate = String(body.payment_date || "").trim();
 
     const currencyCode = body.currency_code
@@ -75,6 +80,17 @@ export async function POST(request: Request) {
       : null;
 
     const exchangeRate = toNumber(body.exchange_rate, 1);
+
+    const exchangeRateDate = body.exchange_rate_date
+      ? String(body.exchange_rate_date).trim()
+      : null;
+
+    const exchangeRateSource = body.exchange_rate_source
+      ? String(body.exchange_rate_source).trim()
+      : null;
+
+    const exchangeRateIsLocked = Boolean(body.exchange_rate_is_locked);
+
     const amountPaid = toNumber(body.amount_paid, 0);
     const bankCharges = toNumber(body.bank_charges, 0);
     const totalCashOutflow = Number((amountPaid + bankCharges).toFixed(2));
@@ -92,14 +108,15 @@ export async function POST(request: Request) {
       : null;
 
     const expenseAccountId = body.expense_account_id
-  ? String(body.expense_account_id).trim()
-  : null;  
+      ? String(body.expense_account_id).trim()
+      : null;
 
     const referenceNumber = body.reference_number
       ? String(body.reference_number).trim()
       : null;
 
     const narration = body.narration ? String(body.narration).trim() : null;
+
     const internalNotes = body.internal_notes
       ? String(body.internal_notes).trim()
       : null;
@@ -168,33 +185,33 @@ export async function POST(request: Request) {
 
     let billPayableAccountId: string | null = null;
 
-if (purchaseBillId) {
-  const { data: bill } = await supabase
-    .from("purchase_bills")
-    .select("id, payable_account_id")
-    .eq("id", purchaseBillId)
-    .eq("organisation_id", organisationId)
-    .single();
+    if (purchaseBillId) {
+      const { data: bill } = await supabase
+        .from("purchase_bills")
+        .select("id, payable_account_id")
+        .eq("id", purchaseBillId)
+        .eq("organisation_id", organisationId)
+        .single();
 
-  if (!bill) {
-    return Response.json(
-      { error: "Purchase bill not found for this organisation." },
-      { status: 404 }
-    );
-  }
+      if (!bill) {
+        return Response.json(
+          { error: "Purchase bill not found for this organisation." },
+          { status: 404 }
+        );
+      }
 
-  billPayableAccountId = bill.payable_account_id || null;
-}
+      billPayableAccountId = bill.payable_account_id || null;
+    }
 
-if (!purchaseBillId && !expenseAccountId) {
-  return Response.json(
-    {
-      error:
-        "Expense account is required when payment is not linked to a purchase bill.",
-    },
-    { status: 400 }
-  );
-}
+    if (!purchaseBillId && !expenseAccountId) {
+      return Response.json(
+        {
+          error:
+            "Expense account is required when payment is not linked to a purchase bill.",
+        },
+        { status: 400 }
+      );
+    }
 
     const { data: payment, error: paymentError } = await supabase
       .from("supplier_payments")
@@ -208,6 +225,9 @@ if (!purchaseBillId && !expenseAccountId) {
         payment_date: paymentDate,
         currency_code: currencyCode || organisation.base_currency_code,
         exchange_rate: exchangeRate,
+        exchange_rate_date: exchangeRateDate,
+        exchange_rate_source: exchangeRateSource,
+        exchange_rate_is_locked: exchangeRateIsLocked,
         amount_paid: amountPaid,
         bank_charges: bankCharges,
         total_cash_outflow: totalCashOutflow,
@@ -249,6 +269,11 @@ if (!purchaseBillId && !expenseAccountId) {
           amount_paid: amountPaid,
           bank_charges: bankCharges,
           total_cash_outflow: totalCashOutflow,
+          currency_code: currencyCode || organisation.base_currency_code,
+          exchange_rate: exchangeRate,
+          exchange_rate_date: exchangeRateDate,
+          exchange_rate_source: exchangeRateSource,
+          exchange_rate_is_locked: exchangeRateIsLocked,
           status: "DRAFT",
         },
       });

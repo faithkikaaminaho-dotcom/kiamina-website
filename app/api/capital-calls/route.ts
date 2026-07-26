@@ -49,7 +49,10 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     const organisationId = String(body.organisation_id || "").trim();
-    const investorId = body.investor_id ? String(body.investor_id).trim() : null;
+
+    const investorId = body.investor_id
+      ? String(body.investor_id).trim()
+      : null;
 
     const accountingPeriodId = body.accounting_period_id
       ? String(body.accounting_period_id).trim()
@@ -60,11 +63,12 @@ export async function POST(request: Request) {
       : null;
 
     const callNumber = await reserveDocumentNumber({
-  supabase,
-  organisationId,
-  documentType: "CAPITAL_CALL",
-  providedNumber: body.call_number,
-});
+      supabase,
+      organisationId,
+      documentType: "CAPITAL_CALL",
+      providedNumber: body.call_number,
+    });
+
     const callDate = String(body.call_date || "").trim();
     const dueDate = body.due_date ? String(body.due_date).trim() : null;
 
@@ -73,9 +77,21 @@ export async function POST(request: Request) {
       : null;
 
     const exchangeRate = toNumber(body.exchange_rate, 1);
+
+    const exchangeRateDate = body.exchange_rate_date
+      ? String(body.exchange_rate_date).trim()
+      : null;
+
+    const exchangeRateSource = body.exchange_rate_source
+      ? String(body.exchange_rate_source).trim()
+      : null;
+
+    const exchangeRateIsLocked = Boolean(body.exchange_rate_is_locked);
+
     const committedAmount = toNumber(body.committed_amount, 0);
     const calledAmount = toNumber(body.called_amount, 0);
     const amountReceived = toNumber(body.amount_received, 0);
+
     const outstandingAmount = Number(
       Math.max(calledAmount - amountReceived, 0).toFixed(2)
     );
@@ -84,7 +100,11 @@ export async function POST(request: Request) {
       ? String(body.funding_type).trim()
       : null;
 
-    const purpose = body.purpose ? String(body.purpose).trim() : null;
+    const purpose =
+      body.purpose || body.funding_purpose
+        ? String(body.purpose || body.funding_purpose).trim()
+        : null;
+
     const terms = body.terms ? String(body.terms).trim() : null;
 
     const internalNotes = body.internal_notes
@@ -177,6 +197,9 @@ export async function POST(request: Request) {
         due_date: dueDate,
         currency_code: currencyCode || organisation.base_currency_code,
         exchange_rate: exchangeRate,
+        exchange_rate_date: exchangeRateDate,
+        exchange_rate_source: exchangeRateSource,
+        exchange_rate_is_locked: exchangeRateIsLocked,
         committed_amount: committedAmount,
         called_amount: calledAmount,
         amount_received: amountReceived,
@@ -198,8 +221,7 @@ export async function POST(request: Request) {
     if (capitalCallError || !capitalCall) {
       return Response.json(
         {
-          error:
-            capitalCallError?.message || "Unable to create capital call.",
+          error: capitalCallError?.message || "Unable to create capital call.",
         },
         { status: 500 }
       );
@@ -219,6 +241,11 @@ export async function POST(request: Request) {
           called_amount: calledAmount,
           amount_received: amountReceived,
           outstanding_amount: outstandingAmount,
+          currency_code: currencyCode || organisation.base_currency_code,
+          exchange_rate: exchangeRate,
+          exchange_rate_date: exchangeRateDate,
+          exchange_rate_source: exchangeRateSource,
+          exchange_rate_is_locked: exchangeRateIsLocked,
           status: "DRAFT",
         },
       });

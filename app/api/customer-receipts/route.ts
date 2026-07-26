@@ -49,7 +49,11 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     const organisationId = String(body.organisation_id || "").trim();
-    const customerId = body.customer_id ? String(body.customer_id).trim() : null;
+
+    const customerId = body.customer_id
+      ? String(body.customer_id).trim()
+      : null;
+
     const salesInvoiceId = body.sales_invoice_id
       ? String(body.sales_invoice_id).trim()
       : null;
@@ -63,11 +67,12 @@ export async function POST(request: Request) {
       : null;
 
     const receiptNumber = await reserveDocumentNumber({
-  supabase,
-  organisationId,
-  documentType: "CUSTOMER_RECEIPT",
-  providedNumber: body.receipt_number,
-});
+      supabase,
+      organisationId,
+      documentType: "CUSTOMER_RECEIPT",
+      providedNumber: body.receipt_number,
+    });
+
     const receiptDate = String(body.receipt_date || "").trim();
 
     const currencyCode = body.currency_code
@@ -75,9 +80,22 @@ export async function POST(request: Request) {
       : null;
 
     const exchangeRate = toNumber(body.exchange_rate, 1);
+
+    const exchangeRateDate = body.exchange_rate_date
+      ? String(body.exchange_rate_date).trim()
+      : null;
+
+    const exchangeRateSource = body.exchange_rate_source
+      ? String(body.exchange_rate_source).trim()
+      : null;
+
+    const exchangeRateIsLocked = Boolean(body.exchange_rate_is_locked);
+
     const amountReceived = toNumber(body.amount_received, 0);
     const bankCharges = toNumber(body.bank_charges, 0);
-    const netAmount = Number(Math.max(amountReceived - bankCharges, 0).toFixed(2));
+    const netAmount = Number(
+      Math.max(amountReceived - bankCharges, 0).toFixed(2)
+    );
 
     const paymentMethod = body.payment_method
       ? String(body.payment_method).trim()
@@ -90,15 +108,17 @@ export async function POST(request: Request) {
     const receivableAccountId = body.receivable_account_id
       ? String(body.receivable_account_id).trim()
       : null;
-      const incomeAccountId = body.income_account_id
-  ? String(body.income_account_id).trim()
-  : null;
+
+    const incomeAccountId = body.income_account_id
+      ? String(body.income_account_id).trim()
+      : null;
 
     const referenceNumber = body.reference_number
       ? String(body.reference_number).trim()
       : null;
 
     const narration = body.narration ? String(body.narration).trim() : null;
+
     const internalNotes = body.internal_notes
       ? String(body.internal_notes).trim()
       : null;
@@ -167,33 +187,33 @@ export async function POST(request: Request) {
 
     let invoiceReceivableAccountId: string | null = null;
 
-if (salesInvoiceId) {
-  const { data: invoice } = await supabase
-    .from("sales_invoices")
-    .select("id, receivable_account_id")
-    .eq("id", salesInvoiceId)
-    .eq("organisation_id", organisationId)
-    .single();
+    if (salesInvoiceId) {
+      const { data: invoice } = await supabase
+        .from("sales_invoices")
+        .select("id, receivable_account_id")
+        .eq("id", salesInvoiceId)
+        .eq("organisation_id", organisationId)
+        .single();
 
-  if (!invoice) {
-    return Response.json(
-      { error: "Sales invoice not found for this organisation." },
-      { status: 404 }
-    );
-  }
+      if (!invoice) {
+        return Response.json(
+          { error: "Sales invoice not found for this organisation." },
+          { status: 404 }
+        );
+      }
 
-  invoiceReceivableAccountId = invoice.receivable_account_id || null;
-}
+      invoiceReceivableAccountId = invoice.receivable_account_id || null;
+    }
 
-if (!salesInvoiceId && !incomeAccountId) {
-  return Response.json(
-    {
-      error:
-        "Income account is required when receipt is not linked to a sales invoice.",
-    },
-    { status: 400 }
-  );
-}
+    if (!salesInvoiceId && !incomeAccountId) {
+      return Response.json(
+        {
+          error:
+            "Income account is required when receipt is not linked to a sales invoice.",
+        },
+        { status: 400 }
+      );
+    }
 
     const { data: receipt, error: receiptError } = await supabase
       .from("customer_receipts")
@@ -207,6 +227,9 @@ if (!salesInvoiceId && !incomeAccountId) {
         receipt_date: receiptDate,
         currency_code: currencyCode || organisation.base_currency_code,
         exchange_rate: exchangeRate,
+        exchange_rate_date: exchangeRateDate,
+        exchange_rate_source: exchangeRateSource,
+        exchange_rate_is_locked: exchangeRateIsLocked,
         amount_received: amountReceived,
         bank_charges: bankCharges,
         net_amount: netAmount,
@@ -243,11 +266,17 @@ if (!salesInvoiceId && !incomeAccountId) {
           customer_id: customerId,
           customer_name: customer.customer_name,
           sales_invoice_id: salesInvoiceId,
-          receivable_account_id: invoiceReceivableAccountId || receivableAccountId,
-          income_account_id: salesInvoiceId ? null : incomeAccountId, 
+          receivable_account_id:
+            invoiceReceivableAccountId || receivableAccountId,
+          income_account_id: salesInvoiceId ? null : incomeAccountId,
           amount_received: amountReceived,
           bank_charges: bankCharges,
           net_amount: netAmount,
+          currency_code: currencyCode || organisation.base_currency_code,
+          exchange_rate: exchangeRate,
+          exchange_rate_date: exchangeRateDate,
+          exchange_rate_source: exchangeRateSource,
+          exchange_rate_is_locked: exchangeRateIsLocked,
           status: "DRAFT",
         },
       });
