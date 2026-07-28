@@ -31,10 +31,10 @@ type CapitalCallRow = {
   currency_code: string | null;
   committed_amount: number | null;
   called_amount: number | null;
-  received_amount: number | null;
+  amount_received: number | null;
   outstanding_amount: number | null;
   funding_type: string | null;
-  funding_purpose: string | null;
+  purpose: string | null;
   status: string | null;
   created_at: string | null;
 };
@@ -57,7 +57,7 @@ function formatDate(value: string | null) {
 function formatMoney(currencyCode: string | null, amount: number | null) {
   const numericAmount = Number(amount || 0);
 
-  return `${currencyCode || "—"} ${numericAmount.toLocaleString(undefined, {
+  return `${currencyCode || "—"} ${numericAmount.toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -120,14 +120,18 @@ export default async function CapitalCallsPage({
     redirect("/portal/organisations");
   }
 
-  const { data: capitalCalls } = await supabase
+  const { data: capitalCalls, error: capitalCallsError } = await supabase
     .from("capital_calls")
     .select(
-      "id, call_number, investor_id, call_date, due_date, currency_code, committed_amount, called_amount, received_amount, outstanding_amount, funding_type, funding_purpose, status, created_at"
+      "id, call_number, investor_id, call_date, due_date, currency_code, committed_amount, called_amount, amount_received, outstanding_amount, funding_type, purpose, status, created_at"
     )
     .eq("organisation_id", id)
     .order("call_date", { ascending: false })
     .order("created_at", { ascending: false });
+
+  if (capitalCallsError) {
+    console.error("Capital calls register error:", capitalCallsError.message);
+  }
 
   const { data: investors } = await supabase
     .from("investors")
@@ -156,7 +160,7 @@ export default async function CapitalCallsPage({
   );
 
   const totalReceived = callRows.reduce(
-    (sum, call) => sum + Number(call.received_amount || 0),
+    (sum, call) => sum + Number(call.amount_received || 0),
     0
   );
 
@@ -379,7 +383,7 @@ export default async function CapitalCallsPage({
                           {call.call_number || "Untitled capital call"}
                         </div>
                         <div className="mt-1 max-w-xs truncate text-xs text-slate-500">
-                          Purpose: {call.funding_purpose || "Not provided"}
+                          Purpose: {call.purpose || "Not provided"}
                         </div>
                         <div className="mt-1 text-xs text-slate-500">
                           Created {formatDate(call.created_at)}
@@ -408,11 +412,14 @@ export default async function CapitalCallsPage({
                       </td>
 
                       <td className="whitespace-nowrap px-6 py-5 text-right text-sm font-semibold text-slate-950">
-                        {formatMoney(call.currency_code, call.received_amount)}
+                        {formatMoney(call.currency_code, call.amount_received)}
                       </td>
 
                       <td className="whitespace-nowrap px-6 py-5 text-right text-sm font-semibold text-slate-950">
-                        {formatMoney(call.currency_code, call.outstanding_amount)}
+                        {formatMoney(
+                          call.currency_code,
+                          call.outstanding_amount
+                        )}
                       </td>
 
                       <td className="whitespace-nowrap px-6 py-5">
@@ -422,14 +429,13 @@ export default async function CapitalCallsPage({
                       </td>
 
                       <td className="whitespace-nowrap px-6 py-5 text-right">
-                        <button
-                          type="button"
-                          disabled
-                          className="inline-flex cursor-not-allowed items-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-4 py-2 text-xs font-semibold text-slate-400"
+                        <a
+                          href={`/portal/organisations/${organisation.id}/capital-calls/${call.id}`}
+                          className="inline-flex items-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-4 py-2 text-xs font-semibold text-[#073D7F] hover:border-[#073D7F]"
                         >
                           <Eye className="h-4 w-4" />
-                          View later
-                        </button>
+                          View
+                        </a>
                       </td>
                     </tr>
                   ))}

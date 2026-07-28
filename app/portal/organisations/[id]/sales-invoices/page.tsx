@@ -347,14 +347,13 @@ export default async function SalesInvoicesPage({
                       </td>
 
                       <td className="whitespace-nowrap px-6 py-5 text-right">
-                        <button
-                          type="button"
-                          disabled
-                          className="inline-flex cursor-not-allowed items-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-4 py-2 text-xs font-semibold text-slate-400"
-                        >
-                          <Eye className="h-4 w-4" />
-                          View later
-                        </button>
+                        <a
+  href={`/portal/organisations/${organisation.id}/sales-invoices/${invoice.id}`}
+  className="inline-flex items-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-4 py-2 text-xs font-semibold text-[#073D7F] hover:border-[#073D7F]"
+>
+  <Eye className="h-4 w-4" />
+  View
+</a>
                       </td>
                     </tr>
                   ))}

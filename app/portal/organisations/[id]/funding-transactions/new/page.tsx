@@ -60,13 +60,20 @@ export default async function NewFundingTransactionPage({
     .eq("is_active", true)
     .order("investor_name", { ascending: true });
 
-  const { data: capitalCalls } = await supabase
+  const { data: capitalCalls, error: capitalCallsError } = await supabase
     .from("capital_calls")
     .select(
-      "id, call_number, investor_id, currency_code, funding_type, funding_purpose, called_amount, received_amount, outstanding_amount, receivable_account_id, equity_account_id, liability_account_id"
+      "id, call_number, investor_id, currency_code, funding_type, funding_purpose:purpose, called_amount, received_amount:amount_received, outstanding_amount, receivable_account_id, equity_account_id, liability_account_id"
     )
     .eq("organisation_id", id)
     .order("created_at", { ascending: false });
+
+  if (capitalCallsError) {
+    console.error(
+      "Funding transaction capital calls fetch error:",
+      capitalCallsError.message
+    );
+  }
 
   const { data: bankAccounts } = await supabase
     .from("chart_of_accounts")
@@ -112,12 +119,12 @@ export default async function NewFundingTransactionPage({
     .order("account_code", { ascending: true });
 
   const { data: accountingPeriods } = await supabase
-  .from("accounting_periods")
-  .select("id, name, start_date, end_date, period_type")
-  .eq("organisation_id", id)
-  .not("name", "ilike", "%management%")
-  .not("name", "ilike", "%report%")
-  .order("start_date", { ascending: false });
+    .from("accounting_periods")
+    .select("id, name, start_date, end_date, period_type")
+    .eq("organisation_id", id)
+    .not("name", "ilike", "%management%")
+    .not("name", "ilike", "%report%")
+    .order("start_date", { ascending: false });
 
   const { data: engagements } = await supabase
     .from("engagements")

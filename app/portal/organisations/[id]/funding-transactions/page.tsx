@@ -35,7 +35,7 @@ type FundingTransactionRow = {
   net_amount: number | null;
   payment_method: string | null;
   reference_number: string | null;
-  funding_purpose: string | null;
+  purpose: string | null;
   status: string | null;
   created_at: string | null;
 };
@@ -63,7 +63,7 @@ function formatDate(value: string | null) {
 function formatMoney(currencyCode: string | null, amount: number | null) {
   const numericAmount = Number(amount || 0);
 
-  return `${currencyCode || "—"} ${numericAmount.toLocaleString(undefined, {
+  return `${currencyCode || "—"} ${numericAmount.toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -136,14 +136,22 @@ export default async function FundingTransactionsPage({
     redirect("/portal/organisations");
   }
 
-  const { data: fundingTransactions } = await supabase
-    .from("funding_transactions")
-    .select(
-      "id, transaction_number, investor_id, capital_call_id, transaction_date, transaction_type, currency_code, amount, bank_charges, net_amount, payment_method, reference_number, funding_purpose, status, created_at"
-    )
-    .eq("organisation_id", id)
-    .order("transaction_date", { ascending: false })
-    .order("created_at", { ascending: false });
+  const { data: fundingTransactions, error: fundingTransactionsError } =
+    await supabase
+      .from("funding_transactions")
+      .select(
+        "id, transaction_number, investor_id, capital_call_id, transaction_date, transaction_type, currency_code, amount, bank_charges, net_amount, payment_method, reference_number, purpose, status, created_at"
+      )
+      .eq("organisation_id", id)
+      .order("transaction_date", { ascending: false })
+      .order("created_at", { ascending: false });
+
+  if (fundingTransactionsError) {
+    console.error(
+      "Funding transactions register error:",
+      fundingTransactionsError.message
+    );
+  }
 
   const { data: investors } = await supabase
     .from("investors")
@@ -392,7 +400,7 @@ export default async function FundingTransactionsPage({
                           Ref: {transaction.reference_number || "Not provided"}
                         </div>
                         <div className="mt-1 max-w-xs truncate text-xs text-slate-500">
-                          Purpose: {transaction.funding_purpose || "Not provided"}
+                          Purpose: {transaction.purpose || "Not provided"}
                         </div>
                         <div className="mt-1 text-xs text-slate-500">
                           Created {formatDate(transaction.created_at)}
@@ -439,14 +447,13 @@ export default async function FundingTransactionsPage({
                       </td>
 
                       <td className="whitespace-nowrap px-6 py-5 text-right">
-                        <button
-                          type="button"
-                          disabled
-                          className="inline-flex cursor-not-allowed items-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-4 py-2 text-xs font-semibold text-slate-400"
+                        <a
+                          href={`/portal/organisations/${organisation.id}/funding-transactions/${transaction.id}`}
+                          className="inline-flex items-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-4 py-2 text-xs font-semibold text-[#073D7F] hover:border-[#073D7F]"
                         >
                           <Eye className="h-4 w-4" />
-                          View later
-                        </button>
+                          View
+                        </a>
                       </td>
                     </tr>
                   ))}
