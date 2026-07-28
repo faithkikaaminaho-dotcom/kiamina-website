@@ -4,6 +4,7 @@ import QuickEngagementForm from "./QuickEngagementForm";
 import {
   ArrowLeft,
   Archive,
+  BookOpenCheck,
   Building2,
   CheckCircle,
   Clock,
@@ -21,7 +22,16 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const internalRoles = ["SUPER_ADMIN", "ADMIN", "STAFF"];
+const internalRoles = [
+  "SUPER_ADMIN",
+  "ADMIN",
+  "STAFF",
+  "IT_ADMIN",
+  "ACCOUNTANT_ADMIN",
+  "ACCOUNTANT_USER",
+  "COMPLIANCE_ADMIN",
+  "OPERATIONS_ADMIN",
+];
 
 function formatFramework(code?: string | null) {
   if (!code) return "—";
@@ -207,6 +217,17 @@ export default async function OrganisationDetailPage({
     .from("funding_transactions")
     .select("*", { count: "exact", head: true })
     .eq("organisation_id", id);
+
+  const { count: journalEntriesCount } = await supabase
+    .from("journal_entries")
+    .select("*", { count: "exact", head: true })
+    .eq("organisation_id", id);
+
+  const { count: draftJournalEntriesCount } = await supabase
+    .from("journal_entries")
+    .select("*", { count: "exact", head: true })
+    .eq("organisation_id", id)
+    .eq("status", "DRAFT");
 
   const { data: recentDocuments } = await supabase
     .from("documents")
@@ -536,6 +557,15 @@ export default async function OrganisationDetailPage({
       };
     }) || [];
 
+  const { data: recentJournalEntries } = await supabase
+    .from("journal_entries")
+    .select(
+      "id, journal_number, journal_date, journal_type, description, currency_code, total_debits, total_credits, status"
+    )
+    .eq("organisation_id", id)
+    .order("created_at", { ascending: false })
+    .limit(3);
+
   const summaryStats = [
     {
       label: "Documents",
@@ -673,6 +703,24 @@ export default async function OrganisationDetailPage({
       },
     },
     {
+      title: "Journals",
+      description:
+        "Create and review manual journals, opening balances, accruals, prepayments, payroll, tax, depreciation, FX, and correction entries.",
+      icon: BookOpenCheck,
+      countLabel: "Journal Entries",
+      countValue: journalEntriesCount ?? 0,
+      secondaryLabel: "Draft Journals",
+      secondaryValue: draftJournalEntriesCount ?? 0,
+      primaryAction: {
+        label: "View Journals",
+        href: `/portal/organisations/${organisation.id}/journal-entries`,
+      },
+      secondaryAction: {
+        label: "Create Journal",
+        href: `/portal/organisations/${organisation.id}/journal-entries/new`,
+      },
+    },
+    {
       title: "Accounting Master Data",
       description:
         "Maintain chart of accounts, customers, suppliers, products, services, and funders.",
@@ -735,8 +783,8 @@ export default async function OrganisationDetailPage({
 
               <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
                 A central workspace for documents, engagements, accounting,
-                receivables, payables, funding, reporting, compliance, and
-                advisory workflows for {organisationName}.
+                journals, receivables, payables, funding, reporting,
+                compliance, and advisory workflows for {organisationName}.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -862,6 +910,14 @@ export default async function OrganisationDetailPage({
               >
                 <Plus className="h-4 w-4" />
                 Create Engagement
+              </a>
+
+              <a
+                href={`/portal/organisations/${organisation.id}/journal-entries/new`}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
+              >
+                <Plus className="h-4 w-4" />
+                Journal Entry
               </a>
 
               <a
@@ -1187,6 +1243,50 @@ export default async function OrganisationDetailPage({
                 ) : (
                   <div className="px-5 py-8 text-sm text-slate-500">
                     No chart of accounts created yet.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-[1.5rem] border border-[#D9E3F4]">
+              <div className="flex items-center justify-between gap-4 bg-[#F1F1F1] px-5 py-4">
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[#6491DE]">
+                  Recent Journals
+                </div>
+
+                <a
+                  href={`/portal/organisations/${organisation.id}/journal-entries`}
+                  className="text-sm font-semibold text-[#073D7F]"
+                >
+                  View all
+                </a>
+              </div>
+
+              <div className="divide-y divide-[#D9E3F4]">
+                {recentJournalEntries && recentJournalEntries.length > 0 ? (
+                  recentJournalEntries.map((journal) => (
+                    <div key={journal.id} className="px-5 py-4 text-sm">
+                      <div className="font-semibold text-slate-950">
+                        {journal.journal_number}
+                      </div>
+
+                      <div className="mt-1 text-xs text-slate-500">
+                        {formatStatus(journal.journal_type)} ·{" "}
+                        {formatDate(journal.journal_date)}
+                      </div>
+
+                      <div className="mt-2 text-sm font-semibold text-slate-950">
+                        {formatMoney(journal.currency_code, journal.total_debits)}
+                      </div>
+
+                      <div className="mt-2 inline-flex rounded-full bg-[#F1F1F1] px-3 py-1 text-xs font-semibold text-[#073D7F]">
+                        {formatStatus(journal.status)}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-5 py-8 text-sm text-slate-500">
+                    No journal entries recorded yet.
                   </div>
                 )}
               </div>
@@ -1675,9 +1775,9 @@ export default async function OrganisationDetailPage({
               </h2>
 
               <p className="mt-4 max-w-3xl text-base leading-8 text-blue-100">
-                Documents, engagements, accounting records, tax, payroll,
-                compliance, financial reporting, and advisory workflows connect
-                through this organisation model.
+                Documents, engagements, accounting records, journals, tax,
+                payroll, compliance, financial reporting, and advisory workflows
+                connect through this organisation model.
               </p>
             </div>
 
@@ -1686,6 +1786,8 @@ export default async function OrganisationDetailPage({
                 "Documents",
                 "Engagements",
                 "Accounting",
+                "Journals",
+                "General Ledger",
                 "Financial Reporting",
                 "Tax",
                 "Payroll",
