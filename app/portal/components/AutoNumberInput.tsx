@@ -8,7 +8,8 @@ type DocumentType =
   | "CUSTOMER_RECEIPT"
   | "SUPPLIER_PAYMENT"
   | "CAPITAL_CALL"
-  | "FUNDING_TRANSACTION";
+  | "FUNDING_TRANSACTION"
+  | "JOURNAL_ENTRY";
 
 export default function AutoNumberInput({
   label,
