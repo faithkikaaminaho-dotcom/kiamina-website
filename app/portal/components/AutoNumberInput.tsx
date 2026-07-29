@@ -9,7 +9,8 @@ type DocumentType =
   | "SUPPLIER_PAYMENT"
   | "CAPITAL_CALL"
   | "FUNDING_TRANSACTION"
-  | "JOURNAL_ENTRY";
+  | "JOURNAL_ENTRY"
+  | "GL_ENTRY";
 
 export default function AutoNumberInput({
   label,

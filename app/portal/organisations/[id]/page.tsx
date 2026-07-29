@@ -229,6 +229,17 @@ export default async function OrganisationDetailPage({
     .eq("organisation_id", id)
     .eq("status", "DRAFT");
 
+  const { count: generalLedgerEntriesCount } = await supabase
+  .from("general_ledger_entries")
+  .select("*", { count: "exact", head: true })
+  .eq("organisation_id", id);
+
+const { count: postedGeneralLedgerEntriesCount } = await supabase
+  .from("general_ledger_entries")
+  .select("*", { count: "exact", head: true })
+  .eq("organisation_id", id)
+  .eq("status", "POSTED");  
+
   const { data: recentDocuments } = await supabase
     .from("documents")
     .select("id, file_name, module, status, created_at")
@@ -721,6 +732,24 @@ export default async function OrganisationDetailPage({
       },
     },
     {
+  title: "General Ledger",
+  description:
+    "Review controlled ledger entries posted from journals and source transactions once posting workflows are enabled.",
+  icon: BookOpenCheck,
+  countLabel: "Ledger Entries",
+  countValue: generalLedgerEntriesCount ?? 0,
+  secondaryLabel: "Posted Entries",
+  secondaryValue: postedGeneralLedgerEntriesCount ?? 0,
+  primaryAction: {
+    label: "Open Ledger",
+    href: `/portal/organisations/${organisation.id}/general-ledger`,
+  },
+  secondaryAction: {
+    label: "Open Journals",
+    href: `/portal/organisations/${organisation.id}/journal-entries`,
+  },
+},
+    {
       title: "Accounting Master Data",
       description:
         "Maintain chart of accounts, customers, suppliers, products, services, and funders.",
@@ -919,6 +948,14 @@ export default async function OrganisationDetailPage({
                 <Plus className="h-4 w-4" />
                 Journal Entry
               </a>
+
+              <a
+  href={`/portal/organisations/${organisation.id}/general-ledger`}
+  className="inline-flex items-center justify-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
+>
+  <BookOpenCheck className="h-4 w-4" />
+  General Ledger
+</a>
 
               <a
                 href={`/portal/organisations/${organisation.id}/sales-invoices/new`}

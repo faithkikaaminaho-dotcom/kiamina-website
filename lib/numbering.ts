@@ -7,7 +7,8 @@ export type NumberDocumentType =
   | "SUPPLIER_PAYMENT"
   | "CAPITAL_CALL"
   | "FUNDING_TRANSACTION"
-  | "JOURNAL_ENTRY";
+  | "JOURNAL_ENTRY"
+  | "GL_ENTRY";
 
 const defaultSequenceConfig: Record<
   NumberDocumentType,
@@ -20,6 +21,7 @@ const defaultSequenceConfig: Record<
   CAPITAL_CALL: { prefix: "CAPCALL", padding: 4 },
   FUNDING_TRANSACTION: { prefix: "FUND", padding: 4 },
   JOURNAL_ENTRY: { prefix: "JE-", padding: 4 },
+  GL_ENTRY: { prefix: "GL-", padding: 4 },
 };
 
 export function formatDocumentNumber(
