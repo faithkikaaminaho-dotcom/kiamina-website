@@ -212,7 +212,49 @@ export default async function JournalEntryDetailPage({
 
   const difference = Number((totalDebits - totalCredits).toFixed(2));
 
-  return (
+const exchangeRate = Number(journal.exchange_rate || 1);
+
+const glPreviewRows = lines.map((line) => {
+  const account = accountMap.get(line.account_id);
+
+  const customerName = customerMap.get(line.customer_id || "");
+  const supplierName = supplierMap.get(line.supplier_id || "");
+  const investorName = investorMap.get(line.investor_id || "");
+
+  const debitAmount = Number(line.debit_amount || 0);
+  const creditAmount = Number(line.credit_amount || 0);
+
+  const baseDebitAmount = Number((debitAmount * exchangeRate).toFixed(2));
+  const baseCreditAmount = Number((creditAmount * exchangeRate).toFixed(2));
+
+  return {
+    id: line.id,
+    lineNumber: line.line_number,
+    account,
+    description: line.description || journal.description || "Journal entry",
+    customerName,
+    supplierName,
+    investorName,
+    debitAmount,
+    creditAmount,
+    baseDebitAmount,
+    baseCreditAmount,
+  };
+});
+
+const baseTotalDebits = glPreviewRows.reduce(
+  (sum, line) => sum + line.baseDebitAmount,
+  0
+);
+
+const baseTotalCredits = glPreviewRows.reduce(
+  (sum, line) => sum + line.baseCreditAmount,
+  0
+);
+
+const baseDifference = Number((baseTotalDebits - baseTotalCredits).toFixed(2));
+
+return (
     <main className="min-h-screen bg-[#F8FAFC]">
       <section className="border-b border-[#D9E3F4] bg-white">
         <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
@@ -596,6 +638,212 @@ export default async function JournalEntryDetailPage({
             </div>
           )}
         </section>
+
+        <section className="mt-8 rounded-[2rem] border border-[#D9E3F4] bg-white shadow-sm">
+  <div className="border-b border-[#D9E3F4] px-6 py-5">
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div>
+        <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
+          General Ledger Preview
+        </div>
+
+        <h2 className="mt-3 text-lg font-semibold text-slate-950">
+          Posting preview from this journal
+        </h2>
+
+        <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-500">
+          This preview shows how the journal lines would appear in the General
+          Ledger if posted. No ledger entry has been created yet.
+        </p>
+      </div>
+
+      <div className="rounded-2xl bg-[#F8FAFC] px-5 py-4 text-sm">
+        <div className="font-semibold text-slate-950">Source Module</div>
+        <div className="mt-1 text-slate-600">JOURNAL_ENTRY</div>
+      </div>
+    </div>
+  </div>
+
+  <div className="grid gap-5 border-b border-[#D9E3F4] px-6 py-6 md:grid-cols-4">
+    <div className="rounded-2xl bg-[#F8FAFC] p-5">
+      <div className="text-sm font-semibold text-slate-500">
+        Preview Debits
+      </div>
+      <div className="mt-3 text-xl font-semibold text-slate-950">
+        {formatMoney(journal.currency_code, totalDebits)}
+      </div>
+    </div>
+
+    <div className="rounded-2xl bg-[#F8FAFC] p-5">
+      <div className="text-sm font-semibold text-slate-500">
+        Preview Credits
+      </div>
+      <div className="mt-3 text-xl font-semibold text-slate-950">
+        {formatMoney(journal.currency_code, totalCredits)}
+      </div>
+    </div>
+
+    <div className="rounded-2xl bg-[#F8FAFC] p-5">
+      <div className="text-sm font-semibold text-slate-500">
+        Base Currency Impact
+      </div>
+      <div className="mt-3 text-xl font-semibold text-slate-950">
+        {formatMoney(organisation.base_currency_code, baseTotalDebits)}
+      </div>
+    </div>
+
+    <div className="rounded-2xl bg-[#F8FAFC] p-5">
+      <div className="text-sm font-semibold text-slate-500">
+        Preview Status
+      </div>
+      <div className="mt-3 inline-flex rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#073D7F]">
+        {difference === 0 && baseDifference === 0
+          ? "Ready for posting review"
+          : "Out of balance"}
+      </div>
+    </div>
+  </div>
+
+  {glPreviewRows.length === 0 ? (
+    <div className="px-6 py-12 text-center text-sm text-slate-500">
+      No journal lines available for General Ledger preview.
+    </div>
+  ) : (
+    <div className="overflow-x-auto">
+      <table className="min-w-full divide-y divide-[#D9E3F4]">
+        <thead className="bg-[#F8FAFC]">
+          <tr>
+            <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+              GL Line
+            </th>
+            <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+              Account
+            </th>
+            <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+              Source / Description
+            </th>
+            <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+              Debit
+            </th>
+            <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+              Credit
+            </th>
+            <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+              Base Debit
+            </th>
+            <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+              Base Credit
+            </th>
+          </tr>
+        </thead>
+
+        <tbody className="divide-y divide-[#D9E3F4] bg-white">
+          {glPreviewRows.map((line) => (
+            <tr key={line.id} className="hover:bg-[#F8FAFC]">
+              <td className="whitespace-nowrap px-6 py-5 text-sm font-semibold text-slate-950">
+                {line.lineNumber}
+              </td>
+
+              <td className="whitespace-nowrap px-6 py-5">
+                <div className="text-sm font-semibold text-slate-950">
+                  {formatAccount(line.account)}
+                </div>
+
+                <div className="mt-1 text-xs text-slate-500">
+                  {line.account?.fs_line_item || "FS line not mapped"}
+                </div>
+              </td>
+
+              <td className="px-6 py-5 text-sm text-slate-600">
+                <div>{line.description}</div>
+
+                <div className="mt-2 space-y-1 text-xs text-slate-500">
+                  <div>Source: JOURNAL_ENTRY</div>
+                  <div>Source Record: {journal.journal_number || journal.id}</div>
+
+                  {line.customerName ? (
+                    <div>Customer: {line.customerName}</div>
+                  ) : null}
+
+                  {line.supplierName ? (
+                    <div>Supplier: {line.supplierName}</div>
+                  ) : null}
+
+                  {line.investorName ? (
+                    <div>Investor / Funder: {line.investorName}</div>
+                  ) : null}
+                </div>
+              </td>
+
+              <td className="whitespace-nowrap px-6 py-5 text-right text-sm font-semibold text-slate-950">
+                {line.debitAmount > 0
+                  ? formatMoney(journal.currency_code, line.debitAmount)
+                  : "—"}
+              </td>
+
+              <td className="whitespace-nowrap px-6 py-5 text-right text-sm font-semibold text-slate-950">
+                {line.creditAmount > 0
+                  ? formatMoney(journal.currency_code, line.creditAmount)
+                  : "—"}
+              </td>
+
+              <td className="whitespace-nowrap px-6 py-5 text-right text-sm font-semibold text-slate-950">
+                {line.baseDebitAmount > 0
+                  ? formatMoney(
+                      organisation.base_currency_code,
+                      line.baseDebitAmount
+                    )
+                  : "—"}
+              </td>
+
+              <td className="whitespace-nowrap px-6 py-5 text-right text-sm font-semibold text-slate-950">
+                {line.baseCreditAmount > 0
+                  ? formatMoney(
+                      organisation.base_currency_code,
+                      line.baseCreditAmount
+                    )
+                  : "—"}
+              </td>
+            </tr>
+          ))}
+
+          <tr className="bg-[#F8FAFC]">
+            <td className="px-6 py-5 text-sm font-semibold text-slate-950">
+              Total
+            </td>
+
+            <td className="px-6 py-5" />
+
+            <td className="px-6 py-5" />
+
+            <td className="whitespace-nowrap px-6 py-5 text-right text-sm font-semibold text-slate-950">
+              {formatMoney(journal.currency_code, totalDebits)}
+            </td>
+
+            <td className="whitespace-nowrap px-6 py-5 text-right text-sm font-semibold text-slate-950">
+              {formatMoney(journal.currency_code, totalCredits)}
+            </td>
+
+            <td className="whitespace-nowrap px-6 py-5 text-right text-sm font-semibold text-slate-950">
+              {formatMoney(organisation.base_currency_code, baseTotalDebits)}
+            </td>
+
+            <td className="whitespace-nowrap px-6 py-5 text-right text-sm font-semibold text-slate-950">
+              {formatMoney(organisation.base_currency_code, baseTotalCredits)}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  )}
+
+  <div className="border-t border-[#D9E3F4] px-6 py-5 text-sm leading-7 text-slate-600">
+    <span className="font-semibold text-slate-950">Control note:</span>{" "}
+    This is a preview only. It does not create records in
+    general_ledger_entries or general_ledger_lines. Posting should only happen
+    after review, approval, and audit trail controls are added.
+  </div>
+</section>
 
         <section className="mt-8 rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
           <div className="flex items-start gap-4">
