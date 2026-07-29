@@ -7,6 +7,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/server";
+import PostToGeneralLedgerButton from "./PostToGeneralLedgerButton";
 
 export const dynamic = "force-dynamic";
 
@@ -311,6 +312,9 @@ return (
               <div className="font-semibold text-slate-950">
                 Journal Balance
               </div>
+              {journal.status !== "POSTED" && difference === 0 && lines.length >= 2 ? (
+  <PostToGeneralLedgerButton journalId={journal.id} />
+) : null}
 
               <div className="mt-3 grid gap-2">
                 <div>
