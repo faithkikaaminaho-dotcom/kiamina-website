@@ -749,6 +749,24 @@ const { count: postedGeneralLedgerEntriesCount } = await supabase
     href: `/portal/organisations/${organisation.id}/journal-entries`,
   },
 },
+{
+  title: "Trial Balance",
+  description:
+    "Review account balances calculated from posted General Ledger lines for reporting and financial statement preparation.",
+  icon: FileText,
+  countLabel: "Accounts",
+  countValue: chartAccountsCount ?? 0,
+  secondaryLabel: "Posted GL Entries",
+  secondaryValue: postedGeneralLedgerEntriesCount ?? 0,
+  primaryAction: {
+    label: "Open Trial Balance",
+    href: `/portal/organisations/${organisation.id}/trial-balance`,
+  },
+  secondaryAction: {
+    label: "Open Ledger",
+    href: `/portal/organisations/${organisation.id}/general-ledger`,
+  },
+},
     {
       title: "Accounting Master Data",
       description:
@@ -955,6 +973,14 @@ const { count: postedGeneralLedgerEntriesCount } = await supabase
 >
   <BookOpenCheck className="h-4 w-4" />
   General Ledger
+</a>
+
+<a
+  href={`/portal/organisations/${organisation.id}/trial-balance`}
+  className="inline-flex items-center justify-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
+>
+  <FileText className="h-4 w-4" />
+  Trial Balance
 </a>
 
               <a
