@@ -368,9 +368,8 @@ export default async function BankAccountDetailPage({
                 </h2>
 
                 <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-500">
-                  These lines are imported from bank statements. Next, we will
-                  add matching to receipts, payments, funding transactions,
-                  capital calls, journals, and General Ledger records.
+                  These lines are imported from bank statements. Open each line
+                  to match it to a source transaction or add it to the books.
                 </p>
               </div>
 
@@ -409,6 +408,9 @@ export default async function BankAccountDetailPage({
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                       Reconciliation
+                    </th>
+                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Action
                     </th>
                   </tr>
                 </thead>
@@ -468,6 +470,15 @@ export default async function BankAccountDetailPage({
                             Added as: {formatStatus(line.added_transaction_module)}
                           </div>
                         ) : null}
+                      </td>
+
+                      <td className="whitespace-nowrap px-6 py-5 text-right text-sm">
+                        <a
+                          href={`/portal/organisations/${organisation.id}/banking/${bankAccount.id}/lines/${line.id}`}
+                          className="inline-flex rounded-full bg-[#073D7F] px-4 py-2 text-xs font-semibold text-white"
+                        >
+                          Open / Match
+                        </a>
                       </td>
                     </tr>
                   ))}
