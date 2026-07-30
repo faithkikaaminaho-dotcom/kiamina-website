@@ -39,6 +39,31 @@ type JournalLine = {
   investor_id: string;
 };
 
+type InitialJournal = {
+  id: string;
+  journal_number: string | null;
+  journal_date: string | null;
+  journal_type: string | null;
+  description: string | null;
+  reference_number: string | null;
+  currency_code: string | null;
+  exchange_rate: number | string | null;
+  exchange_rate_date: string | null;
+  exchange_rate_source: string | null;
+  exchange_rate_is_locked: boolean | null;
+  status: string | null;
+};
+
+type InitialJournalLine = {
+  account_id: string | null;
+  description: string | null;
+  debit_amount: number | string | null;
+  credit_amount: number | string | null;
+  customer_id: string | null;
+  supplier_id: string | null;
+  investor_id: string | null;
+};
+
 function todayDate() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -70,6 +95,28 @@ function formatMoney(amount: number) {
   });
 }
 
+function normaliseAmount(value: number | string | null | undefined) {
+  const numericValue = Number(value || 0);
+
+  if (!Number.isFinite(numericValue) || numericValue === 0) {
+    return "";
+  }
+
+  return String(numericValue);
+}
+
+function normaliseLine(line: InitialJournalLine): JournalLine {
+  return {
+    account_id: line.account_id || "",
+    description: line.description || "",
+    debit_amount: normaliseAmount(line.debit_amount),
+    credit_amount: normaliseAmount(line.credit_amount),
+    customer_id: line.customer_id || "",
+    supplier_id: line.supplier_id || "",
+    investor_id: line.investor_id || "",
+  };
+}
+
 export default function CreateJournalEntryForm({
   organisationId,
   defaultCurrency,
@@ -77,6 +124,9 @@ export default function CreateJournalEntryForm({
   customers,
   suppliers,
   investors,
+  mode = "create",
+  initialJournal,
+  initialLines,
 }: {
   organisationId: string;
   defaultCurrency?: string | null;
@@ -84,24 +134,50 @@ export default function CreateJournalEntryForm({
   customers: CustomerOption[];
   suppliers: SupplierOption[];
   investors: InvestorOption[];
+  mode?: "create" | "edit";
+  initialJournal?: InitialJournal | null;
+  initialLines?: InitialJournalLine[];
 }) {
   const router = useRouter();
 
-  const [journalNumber, setJournalNumber] = useState("");
-  const [journalDate, setJournalDate] = useState(todayDate());
-  const [journalType, setJournalType] = useState("MANUAL");
-  const [description, setDescription] = useState("");
-  const [referenceNumber, setReferenceNumber] = useState("");
-  const [currencyCode, setCurrencyCode] = useState(defaultCurrency || "");
-  const [exchangeRate, setExchangeRate] = useState("1");
-  const [exchangeRateDate, setExchangeRateDate] = useState("");
-  const [exchangeRateSource, setExchangeRateSource] = useState("");
-  const [exchangeRateIsLocked, setExchangeRateIsLocked] = useState(false);
+  const isEditMode = mode === "edit" && initialJournal;
 
-  const [lines, setLines] = useState<JournalLine[]>([
-    emptyLine(),
-    emptyLine(),
-  ]);
+  const [journalNumber, setJournalNumber] = useState(
+    initialJournal?.journal_number || ""
+  );
+  const [journalDate, setJournalDate] = useState(
+    initialJournal?.journal_date || todayDate()
+  );
+  const [journalType, setJournalType] = useState(
+    initialJournal?.journal_type || "MANUAL"
+  );
+  const [description, setDescription] = useState(
+    initialJournal?.description || ""
+  );
+  const [referenceNumber, setReferenceNumber] = useState(
+    initialJournal?.reference_number || ""
+  );
+  const [currencyCode, setCurrencyCode] = useState(
+    initialJournal?.currency_code || defaultCurrency || ""
+  );
+  const [exchangeRate, setExchangeRate] = useState(
+    String(initialJournal?.exchange_rate || "1")
+  );
+  const [exchangeRateDate, setExchangeRateDate] = useState(
+    initialJournal?.exchange_rate_date || ""
+  );
+  const [exchangeRateSource, setExchangeRateSource] = useState(
+    initialJournal?.exchange_rate_source || ""
+  );
+  const [exchangeRateIsLocked, setExchangeRateIsLocked] = useState(
+    Boolean(initialJournal?.exchange_rate_is_locked)
+  );
+
+  const [lines, setLines] = useState<JournalLine[]>(
+    initialLines && initialLines.length >= 2
+      ? initialLines.map(normaliseLine)
+      : [emptyLine(), emptyLine()]
+  );
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -175,8 +251,14 @@ export default function CreateJournalEntryForm({
     setErrorMessage("");
 
     try {
-      const response = await fetch("/api/journal-entries", {
-        method: "POST",
+      const endpoint = isEditMode
+        ? `/api/journal-entries/${initialJournal.id}`
+        : "/api/journal-entries";
+
+      const method = isEditMode ? "PATCH" : "POST";
+
+      const response = await fetch(endpoint, {
+        method,
         headers: {
           "Content-Type": "application/json",
         },
@@ -209,14 +291,30 @@ export default function CreateJournalEntryForm({
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "Unable to create journal entry.");
+        throw new Error(
+          result.error ||
+            (isEditMode
+              ? "Unable to update journal entry."
+              : "Unable to create journal entry.")
+        );
       }
 
-      router.push(`/portal/organisations/${organisationId}/journal-entries`);
+      if (isEditMode) {
+        router.push(
+          `/portal/organisations/${organisationId}/journal-entries/${initialJournal.id}`
+        );
+      } else {
+        router.push(`/portal/organisations/${organisationId}/journal-entries`);
+      }
+
       router.refresh();
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Unable to create journal entry."
+        error instanceof Error
+          ? error.message
+          : isEditMode
+          ? "Unable to update journal entry."
+          : "Unable to create journal entry."
       );
     } finally {
       setSubmitting(false);
@@ -234,15 +332,40 @@ export default function CreateJournalEntryForm({
         </div>
       ) : null}
 
+      {isEditMode ? (
+        <div className="mb-6 rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-5">
+          <div className="text-sm font-semibold uppercase tracking-[0.2em] text-[#6491DE]">
+            Review Edit Mode
+          </div>
+          <p className="mt-2 text-sm leading-7 text-slate-600">
+            This journal is still editable because it has not been posted to the
+            General Ledger. Once posted or voided, edits will be blocked.
+          </p>
+        </div>
+      ) : null}
+
       <div className="grid gap-5 md:grid-cols-2">
-        <AutoNumberInput
-          label="Journal number"
-          value={journalNumber}
-          onChange={setJournalNumber}
-          organisationId={organisationId}
-          documentType="JOURNAL_ENTRY"
-          placeholder="JE-0001"
-        />
+        {isEditMode ? (
+          <label className="block">
+            <span className="text-sm font-semibold text-slate-700">
+              Journal number
+            </span>
+            <input
+              value={journalNumber}
+              disabled
+              className="mt-2 w-full rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] px-4 py-3 text-sm text-slate-500 outline-none"
+            />
+          </label>
+        ) : (
+          <AutoNumberInput
+            label="Journal number"
+            value={journalNumber}
+            onChange={setJournalNumber}
+            organisationId={organisationId}
+            documentType="JOURNAL_ENTRY"
+            placeholder="JE-0001"
+          />
+        )}
 
         <label className="block">
           <span className="text-sm font-semibold text-slate-700">
@@ -536,7 +659,7 @@ export default function CreateJournalEntryForm({
 
           <div className="mt-5 rounded-2xl bg-white/10 p-4 text-sm leading-7 text-blue-100">
             {totals.isBalanced
-              ? "This journal is balanced and can be saved as a draft."
+              ? "This journal is balanced and can be saved."
               : "This journal is not yet balanced. Total debits must equal total credits before saving."}
           </div>
         </div>
@@ -548,11 +671,21 @@ export default function CreateJournalEntryForm({
           disabled={submitting || !totals.isBalanced}
           className="rounded-full bg-[#073D7F] px-6 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {submitting ? "Creating journal entry..." : "Create Draft Journal"}
+          {submitting
+            ? isEditMode
+              ? "Saving changes..."
+              : "Creating journal entry..."
+            : isEditMode
+            ? "Save Journal Changes"
+            : "Create Draft Journal"}
         </button>
 
         <a
-          href={`/portal/organisations/${organisationId}`}
+          href={
+            isEditMode && initialJournal
+              ? `/portal/organisations/${organisationId}/journal-entries/${initialJournal.id}`
+              : `/portal/organisations/${organisationId}`
+          }
           className="rounded-full border border-[#D9E3F4] bg-white px-6 py-3 text-center text-sm font-semibold text-[#073D7F]"
         >
           Cancel

@@ -312,6 +312,14 @@ return (
               <div className="font-semibold text-slate-950">
                 Journal Balance
               </div>
+              {["DRAFT", "READY_FOR_REVIEW", "REVIEWED"].includes(journal.status) ? (
+  <a
+    href={`/portal/organisations/${organisation.id}/journal-entries/${journal.id}/edit`}
+    className="mt-4 inline-flex w-full justify-center rounded-full border border-[#D9E3F4] bg-white px-4 py-2 text-sm font-semibold text-[#073D7F]"
+  >
+    Edit Draft Journal
+  </a>
+) : null}
               {journal.status !== "POSTED" && difference === 0 && lines.length >= 2 ? (
   <PostToGeneralLedgerButton journalId={journal.id} />
 ) : null}
