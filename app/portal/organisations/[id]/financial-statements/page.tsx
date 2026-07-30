@@ -49,6 +49,14 @@ type Account = {
   management_report_category: string | null;
 };
 
+type AccountingPeriod = {
+  id: string;
+  period_name: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  status: string | null;
+};
+
 type FsLineRow = {
   key: string;
   accountType: string;
@@ -101,10 +109,21 @@ function sortRows(rows: FsLineRow[]) {
 
 export default async function FinancialStatementsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{
+    period?: string;
+    start_date?: string;
+    end_date?: string;
+  }>;
 }) {
   const { id } = await params;
+  const resolvedSearchParams = await searchParams;
+
+  const selectedPeriodId = resolvedSearchParams.period || "";
+  const customStartDate = resolvedSearchParams.start_date || "";
+  const customEndDate = resolvedSearchParams.end_date || "";
 
   const supabase = await createClient();
 
@@ -138,12 +157,53 @@ export default async function FinancialStatementsPage({
     redirect("/portal/organisations");
   }
 
-  const { data: postedLedgerEntries } = await supabase
+  const { data: periodRows } = await supabase
+    .from("accounting_periods")
+    .select("id, period_name, start_date, end_date, status")
+    .eq("organisation_id", id)
+    .order("start_date", { ascending: false });
+
+  const accountingPeriods = (periodRows || []) as AccountingPeriod[];
+
+  const selectedPeriod =
+    accountingPeriods.find((period) => period.id === selectedPeriodId) || null;
+
+  let postedLedgerEntriesQuery = supabase
     .from("general_ledger_entries")
     .select("id, status, entry_date")
     .eq("organisation_id", id)
     .eq("status", "POSTED")
     .order("entry_date", { ascending: true });
+
+  if (selectedPeriod?.start_date) {
+  postedLedgerEntriesQuery = postedLedgerEntriesQuery.gte(
+    "entry_date",
+    selectedPeriod.start_date
+  );
+}
+
+if (selectedPeriod?.end_date) {
+  postedLedgerEntriesQuery = postedLedgerEntriesQuery.lte(
+    "entry_date",
+    selectedPeriod.end_date
+  );
+}
+
+if (!selectedPeriod && customStartDate) {
+  postedLedgerEntriesQuery = postedLedgerEntriesQuery.gte(
+    "entry_date",
+    customStartDate
+  );
+}
+
+if (!selectedPeriod && customEndDate) {
+  postedLedgerEntriesQuery = postedLedgerEntriesQuery.lte(
+    "entry_date",
+    customEndDate
+  );
+}
+
+  const { data: postedLedgerEntries } = await postedLedgerEntriesQuery;
 
   const ledgerEntries = (postedLedgerEntries || []) as LedgerEntry[];
   const ledgerEntryIds = ledgerEntries.map((entry) => entry.id);
@@ -386,6 +446,133 @@ export default async function FinancialStatementsPage({
                     Posted GL entries: {ledgerEntries.length}
                   </span>
                 </div>
+
+                <form
+  action={`/portal/organisations/${organisation.id}/financial-statements`}
+  method="get"
+  className="mt-6 rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-5"
+>
+  <div className="grid gap-4 xl:grid-cols-[1.2fr_0.7fr_0.7fr_auto] xl:items-end">
+    <div>
+      <label
+        htmlFor="period"
+        className="text-sm font-semibold text-slate-700"
+      >
+        Reporting period
+      </label>
+
+      <select
+        id="period"
+        name="period"
+        defaultValue={selectedPeriodId}
+        className="mt-2 w-full rounded-2xl border border-[#D9E3F4] bg-white px-4 py-3 text-sm font-medium text-slate-800 outline-none"
+      >
+        <option value="">All posted General Ledger entries</option>
+
+        {accountingPeriods.map((period) => (
+          <option key={period.id} value={period.id}>
+            {period.period_name || "Unnamed period"}{" "}
+            {period.start_date && period.end_date
+              ? `(${period.start_date} to ${period.end_date})`
+              : ""}
+          </option>
+        ))}
+      </select>
+
+      <p className="mt-2 text-xs leading-5 text-slate-500">
+        Select a saved accounting period, or leave it blank and use a custom
+        date range.
+      </p>
+    </div>
+
+    <div>
+      <label
+        htmlFor="start_date"
+        className="text-sm font-semibold text-slate-700"
+      >
+        Custom start date
+      </label>
+
+      <input
+        id="start_date"
+        name="start_date"
+        type="date"
+        defaultValue={customStartDate}
+        className="mt-2 w-full rounded-2xl border border-[#D9E3F4] bg-white px-4 py-3 text-sm font-medium text-slate-800 outline-none"
+      />
+    </div>
+
+    <div>
+      <label
+        htmlFor="end_date"
+        className="text-sm font-semibold text-slate-700"
+      >
+        Custom end date
+      </label>
+
+      <input
+        id="end_date"
+        name="end_date"
+        type="date"
+        defaultValue={customEndDate}
+        className="mt-2 w-full rounded-2xl border border-[#D9E3F4] bg-white px-4 py-3 text-sm font-medium text-slate-800 outline-none"
+      />
+    </div>
+
+    <button
+      type="submit"
+      className="inline-flex items-center justify-center rounded-full bg-[#073D7F] px-6 py-3 text-sm font-semibold text-white shadow-sm"
+    >
+      Apply
+    </button>
+  </div>
+
+  <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    {selectedPeriod ? (
+      <div className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-600">
+        Current view:{" "}
+        <span className="font-semibold text-slate-950">
+          {selectedPeriod.period_name || "Unnamed period"}
+        </span>{" "}
+        {selectedPeriod.start_date && selectedPeriod.end_date
+          ? `from ${selectedPeriod.start_date} to ${selectedPeriod.end_date}`
+          : ""}
+      </div>
+    ) : customStartDate || customEndDate ? (
+      <div className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-600">
+        Current view:{" "}
+        <span className="font-semibold text-slate-950">
+          Custom period
+        </span>{" "}
+        {customStartDate ? `from ${customStartDate}` : "from beginning"}{" "}
+        {customEndDate ? `to ${customEndDate}` : "to latest posted entry"}
+      </div>
+    ) : (
+      <div className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-600">
+        Current view:{" "}
+        <span className="font-semibold text-slate-950">
+          All posted General Ledger entries
+        </span>
+      </div>
+    )}
+
+    <div className="flex flex-wrap gap-3">
+      <a
+        href={`/portal/organisations/${organisation.id}/financial-statements`}
+        className="inline-flex items-center justify-center rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
+      >
+        Clear Filter
+      </a>
+
+      <a
+        href={`/portal/organisations/${organisation.id}/periods/new`}
+        className="inline-flex items-center justify-center rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
+      >
+        Create Period
+      </a>
+    </div>
+  </div>
+</form>
               </div>
             </div>
 
@@ -473,7 +660,10 @@ export default async function FinancialStatementsPage({
               Profit / Surplus
             </div>
             <div className="mt-3 text-2xl font-semibold text-slate-950">
-              {formatMoney(baseCurrencyCode, profitOrLoss > 0 ? profitOrLoss : 0)}
+              {formatMoney(
+                baseCurrencyCode,
+                profitOrLoss > 0 ? profitOrLoss : 0
+              )}
             </div>
           </div>
 
@@ -510,7 +700,10 @@ export default async function FinancialStatementsPage({
                 <div className="mt-1 text-slate-600">
                   Assets less liabilities and equity:{" "}
                   <span className="font-semibold text-slate-950">
-                    {formatMoney(baseCurrencyCode, Math.abs(statementDifference))}
+                    {formatMoney(
+                      baseCurrencyCode,
+                      Math.abs(statementDifference)
+                    )}
                   </span>
                 </div>
               </div>
@@ -540,7 +733,10 @@ export default async function FinancialStatementsPage({
                   Assets
                 </div>
 
-                {renderFsRows(assetRows, "No asset FS item balances posted yet.")}
+                {renderFsRows(
+                  assetRows,
+                  "No asset FS item balances posted yet."
+                )}
 
                 <div className="grid gap-4 bg-[#F8FAFC] px-6 py-5 text-sm md:grid-cols-[1fr_0.45fr_0.35fr]">
                   <div className="font-semibold text-slate-950">
@@ -694,7 +890,10 @@ export default async function FinancialStatementsPage({
                   Income
                 </div>
 
-                {renderFsRows(incomeRows, "No income FS item balances posted yet.")}
+                {renderFsRows(
+                  incomeRows,
+                  "No income FS item balances posted yet."
+                )}
 
                 <div className="grid gap-4 bg-[#F8FAFC] px-6 py-5 text-sm md:grid-cols-[1fr_0.45fr_0.35fr]">
                   <div className="font-semibold text-slate-950">
@@ -800,14 +999,15 @@ export default async function FinancialStatementsPage({
               </h2>
 
               <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600">
-                These statements are generated from posted General Ledger lines
-                and mapped FS line items only. This is not yet a complete IFRS
-                or IAS-compliant financial statement pack. Full compliance will
-                require reporting periods, comparatives, statement of changes in
-                equity, statement of cash flows, notes, accounting policies,
-                disclosures, review controls, and export-ready financial
-                statement formatting.
-              </p>
+  These statements are generated from posted General Ledger lines and mapped FS
+  line items only. The reporting period selector and custom date range are
+  foundation controls and filter the statements by posted General Ledger entry
+  date. This is not yet a complete IFRS or IAS-compliant financial statement
+  pack. Full compliance will require locked reporting periods, comparatives,
+  statement of changes in equity, statement of cash flows, notes, accounting
+  policies, disclosures, review controls, and export-ready financial statement
+  formatting.
+</p>
 
               <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#F1F1F1] px-4 py-2 text-sm font-semibold text-[#073D7F]">
                 <CheckCircle className="h-4 w-4" />
