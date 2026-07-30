@@ -6,6 +6,7 @@ import {
   Archive,
   BookOpenCheck,
   Building2,
+  CalendarDays,
   CheckCircle,
   Clock,
   Coins,
@@ -15,6 +16,7 @@ import {
   Mail,
   Plus,
   ReceiptText,
+  Settings,
   ShieldCheck,
   UserRound,
   WalletCards,
@@ -75,6 +77,30 @@ function formatDate(value?: string | null) {
   }).format(new Date(value));
 }
 
+function formatAccountingYear({
+  startMonth,
+  startDay,
+  endMonth,
+  endDay,
+}: {
+  startMonth?: number | null;
+  startDay?: number | null;
+  endMonth?: number | null;
+  endDay?: number | null;
+}) {
+  if (!startMonth || !startDay || !endMonth || !endDay) {
+    return "Not configured";
+  }
+
+  return `${String(startDay).padStart(2, "0")}/${String(startMonth).padStart(
+    2,
+    "0"
+  )} to ${String(endDay).padStart(2, "0")}/${String(endMonth).padStart(
+    2,
+    "0"
+  )}`;
+}
+
 export default async function OrganisationDetailPage({
   params,
 }: {
@@ -107,7 +133,7 @@ export default async function OrganisationDetailPage({
   const { data: organisation } = await supabase
     .from("organisations")
     .select(
-      "id, legal_name, trading_name, organisation_type, status, jurisdiction_code, reporting_framework_code, base_currency_code, registration_number, tax_identification_number, financial_year_end_month, financial_year_end_day, primary_contact_name, primary_contact_email, primary_contact_phone, risk_rating, legacy_client_id, created_at"
+      "id, legal_name, trading_name, organisation_type, status, jurisdiction_code, reporting_framework_code, base_currency_code, registration_number, tax_identification_number, financial_year_end_month, financial_year_end_day, accounting_year_start_month, accounting_year_start_day, accounting_year_end_month, accounting_year_end_day, primary_contact_name, primary_contact_email, primary_contact_phone, risk_rating, legacy_client_id, created_at"
     )
     .eq("id", id)
     .single();
@@ -119,10 +145,12 @@ export default async function OrganisationDetailPage({
   const organisationName =
     organisation.trading_name || organisation.legal_name || "Organisation";
 
-  const financialYearEnd =
-    organisation.financial_year_end_month && organisation.financial_year_end_day
-      ? `${organisation.financial_year_end_day}/${organisation.financial_year_end_month}`
-      : "—";
+  const accountingYear = formatAccountingYear({
+    startMonth: organisation.accounting_year_start_month,
+    startDay: organisation.accounting_year_start_day,
+    endMonth: organisation.accounting_year_end_month,
+    endDay: organisation.accounting_year_end_day,
+  });
 
   const { count: documentsCount } = await supabase
     .from("documents")
@@ -230,15 +258,15 @@ export default async function OrganisationDetailPage({
     .eq("status", "DRAFT");
 
   const { count: generalLedgerEntriesCount } = await supabase
-  .from("general_ledger_entries")
-  .select("*", { count: "exact", head: true })
-  .eq("organisation_id", id);
+    .from("general_ledger_entries")
+    .select("*", { count: "exact", head: true })
+    .eq("organisation_id", id);
 
-const { count: postedGeneralLedgerEntriesCount } = await supabase
-  .from("general_ledger_entries")
-  .select("*", { count: "exact", head: true })
-  .eq("organisation_id", id)
-  .eq("status", "POSTED");  
+  const { count: postedGeneralLedgerEntriesCount } = await supabase
+    .from("general_ledger_entries")
+    .select("*", { count: "exact", head: true })
+    .eq("organisation_id", id)
+    .eq("status", "POSTED");
 
   const { data: recentDocuments } = await supabase
     .from("documents")
@@ -732,59 +760,59 @@ const { count: postedGeneralLedgerEntriesCount } = await supabase
       },
     },
     {
-  title: "General Ledger",
-  description:
-    "Review controlled ledger entries posted from journals and source transactions once posting workflows are enabled.",
-  icon: BookOpenCheck,
-  countLabel: "Ledger Entries",
-  countValue: generalLedgerEntriesCount ?? 0,
-  secondaryLabel: "Posted Entries",
-  secondaryValue: postedGeneralLedgerEntriesCount ?? 0,
-  primaryAction: {
-    label: "Open Ledger",
-    href: `/portal/organisations/${organisation.id}/general-ledger`,
-  },
-  secondaryAction: {
-    label: "Open Journals",
-    href: `/portal/organisations/${organisation.id}/journal-entries`,
-  },
-},
-{
-  title: "Trial Balance",
-  description:
-    "Review account balances calculated from posted General Ledger lines for reporting and financial statement preparation.",
-  icon: FileText,
-  countLabel: "Accounts",
-  countValue: chartAccountsCount ?? 0,
-  secondaryLabel: "Posted GL Entries",
-  secondaryValue: postedGeneralLedgerEntriesCount ?? 0,
-  primaryAction: {
-    label: "Open Trial Balance",
-    href: `/portal/organisations/${organisation.id}/trial-balance`,
-  },
-  secondaryAction: {
-    label: "Open Ledger",
-    href: `/portal/organisations/${organisation.id}/general-ledger`,
-  },
-},
-{
-  title: "Financial Statements",
-  description:
-    "Review read-only financial statement outputs generated from posted General Ledger balances and chart of accounts mapping.",
-  icon: FileText,
-  countLabel: "Posted GL Entries",
-  countValue: postedGeneralLedgerEntriesCount ?? 0,
-  secondaryLabel: "Mapped Accounts",
-  secondaryValue: chartAccountsCount ?? 0,
-  primaryAction: {
-    label: "Open Statements",
-    href: `/portal/organisations/${organisation.id}/financial-statements`,
-  },
-  secondaryAction: {
-    label: "Open Trial Balance",
-    href: `/portal/organisations/${organisation.id}/trial-balance`,
-  },
-},
+      title: "General Ledger",
+      description:
+        "Review controlled ledger entries posted from journals and source transactions once posting workflows are enabled.",
+      icon: BookOpenCheck,
+      countLabel: "Ledger Entries",
+      countValue: generalLedgerEntriesCount ?? 0,
+      secondaryLabel: "Posted Entries",
+      secondaryValue: postedGeneralLedgerEntriesCount ?? 0,
+      primaryAction: {
+        label: "Open Ledger",
+        href: `/portal/organisations/${organisation.id}/general-ledger`,
+      },
+      secondaryAction: {
+        label: "Open Journals",
+        href: `/portal/organisations/${organisation.id}/journal-entries`,
+      },
+    },
+    {
+      title: "Trial Balance",
+      description:
+        "Review account balances calculated from posted General Ledger lines for reporting and financial statement preparation.",
+      icon: FileText,
+      countLabel: "Accounts",
+      countValue: chartAccountsCount ?? 0,
+      secondaryLabel: "Posted GL Entries",
+      secondaryValue: postedGeneralLedgerEntriesCount ?? 0,
+      primaryAction: {
+        label: "Open Trial Balance",
+        href: `/portal/organisations/${organisation.id}/trial-balance`,
+      },
+      secondaryAction: {
+        label: "Open Ledger",
+        href: `/portal/organisations/${organisation.id}/general-ledger`,
+      },
+    },
+    {
+      title: "Financial Statements",
+      description:
+        "Review read-only financial statement outputs generated from posted General Ledger balances and chart of accounts mapping.",
+      icon: FileText,
+      countLabel: "Posted GL Entries",
+      countValue: postedGeneralLedgerEntriesCount ?? 0,
+      secondaryLabel: "Mapped Accounts",
+      secondaryValue: chartAccountsCount ?? 0,
+      primaryAction: {
+        label: "Open Statements",
+        href: `/portal/organisations/${organisation.id}/financial-statements`,
+      },
+      secondaryAction: {
+        label: "Open Trial Balance",
+        href: `/portal/organisations/${organisation.id}/trial-balance`,
+      },
+    },
     {
       title: "Accounting Master Data",
       description:
@@ -868,6 +896,10 @@ const { count: postedGeneralLedgerEntriesCount } = await supabase
                 <span className="rounded-full bg-[#F1F1F1] px-4 py-2 text-sm font-semibold text-slate-700">
                   {organisation.base_currency_code || "No currency"}
                 </span>
+
+                <span className="rounded-full bg-[#F1F1F1] px-4 py-2 text-sm font-semibold text-slate-700">
+                  Accounting Year: {accountingYear}
+                </span>
               </div>
             </div>
 
@@ -889,9 +921,9 @@ const { count: postedGeneralLedgerEntriesCount } = await supabase
 
                 <div>
                   <span className="font-semibold text-slate-950">
-                    Financial Year End:
+                    Accounting Year:
                   </span>{" "}
-                  {financialYearEnd}
+                  {accountingYear}
                 </div>
 
                 <div>
@@ -907,6 +939,13 @@ const { count: postedGeneralLedgerEntriesCount } = await supabase
                   </span>{" "}
                   {organisation.primary_contact_name || "—"}
                 </div>
+
+                <a
+                  href={`/portal/organisations/${organisation.id}/settings`}
+                  className="mt-4 inline-flex rounded-full bg-[#073D7F] px-4 py-2 text-sm font-semibold text-white"
+                >
+                  Organisation Settings
+                </a>
               </div>
             </div>
           </div>
@@ -978,6 +1017,22 @@ const { count: postedGeneralLedgerEntriesCount } = await supabase
               </a>
 
               <a
+                href={`/portal/organisations/${organisation.id}/settings`}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
+              >
+                <Settings className="h-4 w-4" />
+                Organisation Settings
+              </a>
+
+              <a
+                href={`/portal/organisations/${organisation.id}/periods`}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
+              >
+                <CalendarDays className="h-4 w-4" />
+                Period Control
+              </a>
+
+              <a
                 href={`/portal/organisations/${organisation.id}/journal-entries/new`}
                 className="inline-flex items-center justify-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
               >
@@ -986,28 +1041,28 @@ const { count: postedGeneralLedgerEntriesCount } = await supabase
               </a>
 
               <a
-  href={`/portal/organisations/${organisation.id}/general-ledger`}
-  className="inline-flex items-center justify-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
->
-  <BookOpenCheck className="h-4 w-4" />
-  General Ledger
-</a>
+                href={`/portal/organisations/${organisation.id}/general-ledger`}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
+              >
+                <BookOpenCheck className="h-4 w-4" />
+                General Ledger
+              </a>
 
-<a
-  href={`/portal/organisations/${organisation.id}/trial-balance`}
-  className="inline-flex items-center justify-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
->
-  <FileText className="h-4 w-4" />
-  Trial Balance
-</a>
+              <a
+                href={`/portal/organisations/${organisation.id}/trial-balance`}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
+              >
+                <FileText className="h-4 w-4" />
+                Trial Balance
+              </a>
 
-<a
-  href={`/portal/organisations/${organisation.id}/financial-statements`}
-  className="inline-flex items-center justify-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
->
-  <FileText className="h-4 w-4" />
-  Financial Statements
-</a>
+              <a
+                href={`/portal/organisations/${organisation.id}/financial-statements`}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
+              >
+                <FileText className="h-4 w-4" />
+                Financial Statements
+              </a>
 
               <a
                 href={`/portal/organisations/${organisation.id}/sales-invoices/new`}
@@ -1176,7 +1231,7 @@ const { count: postedGeneralLedgerEntriesCount } = await supabase
               Reporting profile
             </h2>
 
-            <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            <div className="mt-6 grid gap-4 sm:grid-cols-4">
               <div className="rounded-2xl bg-[#F1F1F1] p-5">
                 <Globe2 className="h-5 w-5 text-[#073D7F]" />
                 <div className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -1204,6 +1259,16 @@ const { count: postedGeneralLedgerEntriesCount } = await supabase
                 </div>
                 <div className="mt-2 font-semibold text-slate-950">
                   {organisation.base_currency_code || "—"}
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-[#F1F1F1] p-5">
+                <CalendarDays className="h-5 w-5 text-[#073D7F]" />
+                <div className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Accounting Year
+                </div>
+                <div className="mt-2 font-semibold text-slate-950">
+                  {accountingYear}
                 </div>
               </div>
             </div>
