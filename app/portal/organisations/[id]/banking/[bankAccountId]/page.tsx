@@ -6,8 +6,10 @@ import {
   FileText,
   Plus,
   RefreshCcw,
+  XCircle,
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/server";
+import BankLineInlineActions from "./BankLineInlineActions";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +23,17 @@ const internalRoles = [
   "COMPLIANCE_ADMIN",
   "OPERATIONS_ADMIN",
 ];
+
+type SourceCandidate = {
+  source_module: string;
+  source_record_id: string;
+  label: string;
+  description: string;
+  amount: number;
+  currency_code: string | null;
+  transaction_date: string | null;
+  status: string | null;
+};
 
 function formatMoney(currencyCode?: string | null, amount?: number | null) {
   return `${currencyCode || "—"} ${Number(amount || 0).toLocaleString(
@@ -50,6 +63,40 @@ function formatStatus(status?: string | null) {
     .join(" ")
     .toLowerCase()
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatBankStatus(status?: string | null) {
+  if (["UNMATCHED", "POSSIBLE_MATCH"].includes(status || "")) {
+    return "Unreconciled";
+  }
+
+  if (["MATCHED", "ADDED_TO_BOOKS", "RECONCILED"].includes(status || "")) {
+    return "Reconciled";
+  }
+
+  if (["IGNORED", "EXCLUDED"].includes(status || "")) {
+    return "Excluded";
+  }
+
+  return formatStatus(status);
+}
+
+function BankStatusIcon({ status }: { status?: string | null }) {
+  if (["MATCHED", "ADDED_TO_BOOKS", "RECONCILED"].includes(status || "")) {
+    return <CheckCircle className="h-3 w-3" />;
+  }
+
+  if (["IGNORED", "EXCLUDED"].includes(status || "")) {
+    return <XCircle className="h-3 w-3" />;
+  }
+
+  return <RefreshCcw className="h-3 w-3" />;
+}
+
+function toNumber(value: unknown) {
+  const numericValue = Number(value || 0);
+
+  return Number.isFinite(numericValue) ? numericValue : 0;
 }
 
 export default async function BankAccountDetailPage({
@@ -127,19 +174,26 @@ export default async function BankAccountDetailPage({
     .eq("organisation_id", id)
     .eq("bank_account_id", bankAccountId);
 
-  const { count: unmatchedLinesCount } = await supabase
+  const { count: unreconciledLinesCount } = await supabase
     .from("bank_statement_lines")
     .select("*", { count: "exact", head: true })
     .eq("organisation_id", id)
     .eq("bank_account_id", bankAccountId)
-    .eq("reconciliation_status", "UNMATCHED");
+    .in("reconciliation_status", ["UNMATCHED", "POSSIBLE_MATCH"]);
 
-  const { count: matchedLinesCount } = await supabase
+  const { count: reconciledLinesCount } = await supabase
     .from("bank_statement_lines")
     .select("*", { count: "exact", head: true })
     .eq("organisation_id", id)
     .eq("bank_account_id", bankAccountId)
     .in("reconciliation_status", ["MATCHED", "RECONCILED", "ADDED_TO_BOOKS"]);
+
+  const { count: excludedLinesCount } = await supabase
+    .from("bank_statement_lines")
+    .select("*", { count: "exact", head: true })
+    .eq("organisation_id", id)
+    .eq("bank_account_id", bankAccountId)
+    .in("reconciliation_status", ["IGNORED", "EXCLUDED"]);
 
   const { data: statementLines } = await supabase
     .from("bank_statement_lines")
@@ -160,6 +214,206 @@ export default async function BankAccountDetailPage({
     .eq("bank_account_id", bankAccountId)
     .order("created_at", { ascending: false })
     .limit(5);
+
+  const candidates: SourceCandidate[] = [];
+
+  const { data: customerReceipts } = await supabase
+    .from("customer_receipts")
+    .select(
+      "id, receipt_number, receipt_date, currency_code, amount_received, net_amount, status"
+    )
+    .eq("organisation_id", id)
+    .order("receipt_date", { ascending: false })
+    .limit(100);
+
+  if (customerReceipts) {
+    candidates.push(
+      ...customerReceipts.map((receipt) => ({
+        source_module: "CUSTOMER_RECEIPT",
+        source_record_id: receipt.id,
+        label: receipt.receipt_number || "Customer Receipt",
+        description: "Customer receipt recorded in source transactions.",
+        amount: toNumber(receipt.net_amount || receipt.amount_received),
+        currency_code: receipt.currency_code,
+        transaction_date: receipt.receipt_date,
+        status: receipt.status,
+      }))
+    );
+  }
+
+  const { data: supplierPayments } = await supabase
+    .from("supplier_payments")
+    .select(
+      "id, payment_number, payment_date, currency_code, amount_paid, total_cash_outflow, status"
+    )
+    .eq("organisation_id", id)
+    .order("payment_date", { ascending: false })
+    .limit(100);
+
+  if (supplierPayments) {
+    candidates.push(
+      ...supplierPayments.map((payment) => ({
+        source_module: "SUPPLIER_PAYMENT",
+        source_record_id: payment.id,
+        label: payment.payment_number || "Supplier Payment",
+        description: "Supplier payment recorded in source transactions.",
+        amount: toNumber(payment.total_cash_outflow || payment.amount_paid),
+        currency_code: payment.currency_code,
+        transaction_date: payment.payment_date,
+        status: payment.status,
+      }))
+    );
+  }
+
+  const { data: fundingTransactions } = await supabase
+    .from("funding_transactions")
+    .select(
+      "id, transaction_number, transaction_date, transaction_type, currency_code, amount, net_amount, status"
+    )
+    .eq("organisation_id", id)
+    .order("transaction_date", { ascending: false })
+    .limit(100);
+
+  if (fundingTransactions) {
+    candidates.push(
+      ...fundingTransactions.map((transaction) => ({
+        source_module: "FUNDING_TRANSACTION",
+        source_record_id: transaction.id,
+        label: transaction.transaction_number || "Funding Transaction",
+        description: `Funding transaction · ${formatStatus(
+          transaction.transaction_type
+        )}`,
+        amount: toNumber(transaction.net_amount || transaction.amount),
+        currency_code: transaction.currency_code,
+        transaction_date: transaction.transaction_date,
+        status: transaction.status,
+      }))
+    );
+  }
+
+  const { data: capitalCalls } = await supabase
+    .from("capital_calls")
+    .select(
+      "id, call_number, call_date, currency_code, called_amount, outstanding_amount, status"
+    )
+    .eq("organisation_id", id)
+    .order("call_date", { ascending: false })
+    .limit(100);
+
+  if (capitalCalls) {
+    candidates.push(
+      ...capitalCalls.map((call) => ({
+        source_module: "CAPITAL_CALL",
+        source_record_id: call.id,
+        label: call.call_number || "Capital Call",
+        description: "Capital call recorded in funding source transactions.",
+        amount: toNumber(call.called_amount),
+        currency_code: call.currency_code,
+        transaction_date: call.call_date,
+        status: call.status,
+      }))
+    );
+  }
+
+  const { data: journalEntries } = await supabase
+    .from("journal_entries")
+    .select(
+      "id, journal_number, journal_date, journal_type, description, currency_code, total_debits, total_credits, status"
+    )
+    .eq("organisation_id", id)
+    .order("journal_date", { ascending: false })
+    .limit(100);
+
+  if (journalEntries) {
+    candidates.push(
+      ...journalEntries.map((journal) => ({
+        source_module: "JOURNAL_ENTRY",
+        source_record_id: journal.id,
+        label: journal.journal_number || "Journal Entry",
+        description:
+          journal.description ||
+          `Journal entry · ${formatStatus(journal.journal_type)}`,
+        amount: toNumber(journal.total_debits || journal.total_credits),
+        currency_code: journal.currency_code,
+        transaction_date: journal.journal_date,
+        status: journal.status,
+      }))
+    );
+  }
+
+  const { data: salesInvoices } = await supabase
+    .from("sales_invoices")
+    .select(
+      "id, invoice_number, invoice_date, currency_code, total_amount, balance_due, status"
+    )
+    .eq("organisation_id", id)
+    .order("invoice_date", { ascending: false })
+    .limit(100);
+
+  if (salesInvoices) {
+    candidates.push(
+      ...salesInvoices.map((invoice) => ({
+        source_module: "SALES_INVOICE",
+        source_record_id: invoice.id,
+        label: invoice.invoice_number || "Sales Invoice",
+        description: "Sales invoice recorded in source transactions.",
+        amount: toNumber(invoice.total_amount),
+        currency_code: invoice.currency_code,
+        transaction_date: invoice.invoice_date,
+        status: invoice.status,
+      }))
+    );
+  }
+
+  const { data: purchaseBills } = await supabase
+    .from("purchase_bills")
+    .select(
+      "id, bill_number, bill_date, currency_code, total_amount, balance_due, status"
+    )
+    .eq("organisation_id", id)
+    .order("bill_date", { ascending: false })
+    .limit(100);
+
+  if (purchaseBills) {
+    candidates.push(
+      ...purchaseBills.map((bill) => ({
+        source_module: "PURCHASE_BILL",
+        source_record_id: bill.id,
+        label: bill.bill_number || "Purchase Bill",
+        description: "Purchase bill recorded in source transactions.",
+        amount: toNumber(bill.total_amount),
+        currency_code: bill.currency_code,
+        transaction_date: bill.bill_date,
+        status: bill.status,
+      }))
+    );
+  }
+
+  const { data: generalLedgerEntries } = await supabase
+    .from("general_ledger_entries")
+    .select(
+      "id, entry_number, entry_date, source_module, description, currency_code, total_debits, total_credits, status"
+    )
+    .eq("organisation_id", id)
+    .order("entry_date", { ascending: false })
+    .limit(100);
+
+  if (generalLedgerEntries) {
+    candidates.push(
+      ...generalLedgerEntries.map((entry) => ({
+        source_module: "GENERAL_LEDGER_ENTRY",
+        source_record_id: entry.id,
+        label: entry.entry_number || "General Ledger Entry",
+        description:
+          entry.description ||
+          `General Ledger entry · ${formatStatus(entry.source_module)}`,
+        amount: toNumber(entry.total_debits || entry.total_credits),
+        currency_code: entry.currency_code,
+        transaction_date: entry.entry_date,
+        status: entry.status,
+      }))
+    );
+  }
 
   const organisationName =
     organisation.trading_name || organisation.legal_name || "Organisation";
@@ -192,8 +446,8 @@ export default async function BankAccountDetailPage({
                 </h1>
 
                 <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
-                  Review bank statement lines, imports, matching status, and
-                  reconciliation progress for {organisationName}.
+                  Review bank statement lines, imports, inline matching,
+                  exclusions, and reconciliation progress for {organisationName}.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-3">
@@ -252,7 +506,7 @@ export default async function BankAccountDetailPage({
       </section>
 
       <section className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
           <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-white p-6 shadow-sm">
             <div className="text-sm font-medium text-slate-500">
               Statement Lines
@@ -264,19 +518,28 @@ export default async function BankAccountDetailPage({
 
           <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-white p-6 shadow-sm">
             <div className="text-sm font-medium text-slate-500">
-              Unmatched Lines
+              Unreconciled
             </div>
             <div className="mt-5 text-3xl font-semibold text-slate-950">
-              {unmatchedLinesCount ?? 0}
+              {unreconciledLinesCount ?? 0}
             </div>
           </div>
 
           <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-white p-6 shadow-sm">
             <div className="text-sm font-medium text-slate-500">
-              Matched / Added
+              Reconciled
             </div>
             <div className="mt-5 text-3xl font-semibold text-slate-950">
-              {matchedLinesCount ?? 0}
+              {reconciledLinesCount ?? 0}
+            </div>
+          </div>
+
+          <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-white p-6 shadow-sm">
+            <div className="text-sm font-medium text-slate-500">
+              Excluded
+            </div>
+            <div className="mt-5 text-3xl font-semibold text-slate-950">
+              {excludedLinesCount ?? 0}
             </div>
           </div>
 
@@ -360,7 +623,7 @@ export default async function BankAccountDetailPage({
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
-                  Bank Statement Lines
+                  Bank Feed
                 </div>
 
                 <h2 className="mt-3 text-lg font-semibold text-slate-950">
@@ -368,8 +631,8 @@ export default async function BankAccountDetailPage({
                 </h2>
 
                 <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-500">
-                  These lines are imported from bank statements. Open each line
-                  to match it to a source transaction or add it to the books.
+                  Match, exclude, or open bank lines directly from this feed.
+                  Add-to-books will be added next for unmatched items.
                 </p>
               </div>
 
@@ -407,7 +670,7 @@ export default async function BankAccountDetailPage({
                       Balance
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      Reconciliation
+                      Status
                     </th>
                     <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                       Action
@@ -451,12 +714,8 @@ export default async function BankAccountDetailPage({
 
                       <td className="whitespace-nowrap px-6 py-5 text-sm">
                         <div className="inline-flex items-center gap-2 rounded-full bg-[#F1F1F1] px-3 py-1 text-xs font-semibold text-[#073D7F]">
-                          {line.reconciliation_status === "UNMATCHED" ? (
-                            <RefreshCcw className="h-3 w-3" />
-                          ) : (
-                            <CheckCircle className="h-3 w-3" />
-                          )}
-                          {formatStatus(line.reconciliation_status)}
+                          <BankStatusIcon status={line.reconciliation_status} />
+                          {formatBankStatus(line.reconciliation_status)}
                         </div>
 
                         {line.matched_source_module ? (
@@ -473,12 +732,18 @@ export default async function BankAccountDetailPage({
                       </td>
 
                       <td className="whitespace-nowrap px-6 py-5 text-right text-sm">
-                        <a
-                          href={`/portal/organisations/${organisation.id}/banking/${bankAccount.id}/lines/${line.id}`}
-                          className="inline-flex rounded-full bg-[#073D7F] px-4 py-2 text-xs font-semibold text-white"
-                        >
-                          Open / Match
-                        </a>
+                        <BankLineInlineActions
+                          organisationId={organisation.id}
+                          bankAccountId={bankAccount.id}
+                          line={{
+                            id: line.id,
+                            money_in: line.money_in,
+                            money_out: line.money_out,
+                            currency_code: line.currency_code,
+                            reconciliation_status: line.reconciliation_status,
+                          }}
+                          candidates={candidates}
+                        />
                       </td>
                     </tr>
                   ))}
