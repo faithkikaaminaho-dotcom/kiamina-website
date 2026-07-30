@@ -49,15 +49,14 @@ type Account = {
   management_report_category: string | null;
 };
 
-type StatementRow = {
-  accountId: string;
-  accountCode: string;
-  accountName: string;
+type FsLineRow = {
+  key: string;
   accountType: string;
   accountSubtype: string;
   fsSection: string;
   fsLineItem: string;
   balance: number;
+  accountCount: number;
 };
 
 function formatMoney(currencyCode?: string | null, amount?: number | null) {
@@ -77,15 +76,26 @@ function formatStatus(status?: string | null) {
     .join(" ");
 }
 
-function sortRows(rows: StatementRow[]) {
+function normaliseText(value?: string | null) {
+  return (value || "")
+    .toString()
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "_");
+}
+
+function isOciLine(row: FsLineRow) {
+  const combined = `${row.accountSubtype} ${row.fsSection} ${row.fsLineItem}`;
+
+  return combined.toUpperCase().includes("OTHER COMPREHENSIVE");
+}
+
+function sortRows(rows: FsLineRow[]) {
   return rows.sort((a, b) => {
     const sectionCompare = a.fsSection.localeCompare(b.fsSection);
     if (sectionCompare !== 0) return sectionCompare;
 
-    const lineCompare = a.fsLineItem.localeCompare(b.fsLineItem);
-    if (lineCompare !== 0) return lineCompare;
-
-    return a.accountCode.localeCompare(b.accountCode);
+    return a.fsLineItem.localeCompare(b.fsLineItem);
   });
 }
 
@@ -171,8 +181,8 @@ export default async function FinancialStatementsPage({
   }
 
   const accountMap = new Map(accounts.map((account) => [account.id, account]));
-  const statementMap = new Map<string, StatementRow>();
-  const profitLossMap = new Map<string, StatementRow>();
+  const fsLineMap = new Map<string, FsLineRow>();
+  const fsLineAccountTracker = new Map<string, Set<string>>();
 
   for (const line of ledgerLines) {
     const account = accountMap.get(line.account_id);
@@ -183,7 +193,10 @@ export default async function FinancialStatementsPage({
       line.base_credit_amount || line.credit_amount || 0
     );
 
-    const accountType = (account.account_type || "UNKNOWN").toUpperCase();
+    const accountType = normaliseText(account.account_type || "UNKNOWN");
+    const accountSubtype = account.account_subtype || "Not classified";
+    const fsSection = account.fs_section || "Not mapped";
+    const fsLineItem = account.fs_line_item || "Not mapped";
 
     let movement = 0;
 
@@ -199,56 +212,59 @@ export default async function FinancialStatementsPage({
       continue;
     }
 
-    const targetMap =
-      accountType === "INCOME" || accountType === "EXPENSE"
-        ? profitLossMap
-        : statementMap;
+    const key = `${accountType}::${fsSection}::${fsLineItem}`;
 
-    const existing = targetMap.get(account.id);
+    const existing = fsLineMap.get(key);
 
-    const row: StatementRow =
+    const row: FsLineRow =
       existing || {
-        accountId: account.id,
-        accountCode: account.account_code || "No code",
-        accountName: account.account_name || "Unnamed account",
+        key,
         accountType,
-        accountSubtype: account.account_subtype || "—",
-        fsSection: account.fs_section || "Not mapped",
-        fsLineItem: account.fs_line_item || "Not mapped",
+        accountSubtype,
+        fsSection,
+        fsLineItem,
         balance: 0,
+        accountCount: 0,
       };
 
     row.balance = Number((row.balance + movement).toFixed(2));
 
-    targetMap.set(account.id, row);
+    if (!fsLineAccountTracker.has(key)) {
+      fsLineAccountTracker.set(key, new Set<string>());
+    }
+
+    fsLineAccountTracker.get(key)?.add(account.id);
+    row.accountCount = fsLineAccountTracker.get(key)?.size || 0;
+
+    fsLineMap.set(key, row);
   }
 
-  const statementRows = Array.from(statementMap.values()).filter(
-    (row) => row.balance !== 0
-  );
-
-  const profitLossRows = Array.from(profitLossMap.values()).filter(
+  const allFsRows = Array.from(fsLineMap.values()).filter(
     (row) => row.balance !== 0
   );
 
   const assetRows = sortRows(
-    statementRows.filter((row) => row.accountType === "ASSET")
+    allFsRows.filter((row) => row.accountType === "ASSET")
   );
 
   const liabilityRows = sortRows(
-    statementRows.filter((row) => row.accountType === "LIABILITY")
+    allFsRows.filter((row) => row.accountType === "LIABILITY")
   );
 
   const equityRows = sortRows(
-    statementRows.filter((row) => row.accountType === "EQUITY")
+    allFsRows.filter((row) => row.accountType === "EQUITY")
   );
 
   const incomeRows = sortRows(
-    profitLossRows.filter((row) => row.accountType === "INCOME")
+    allFsRows.filter((row) => row.accountType === "INCOME" && !isOciLine(row))
   );
 
   const expenseRows = sortRows(
-    profitLossRows.filter((row) => row.accountType === "EXPENSE")
+    allFsRows.filter((row) => row.accountType === "EXPENSE")
+  );
+
+  const ociRows = sortRows(
+    allFsRows.filter((row) => row.accountType === "INCOME" && isOciLine(row))
   );
 
   const totalAssets = assetRows.reduce((sum, row) => sum + row.balance, 0);
@@ -256,13 +272,26 @@ export default async function FinancialStatementsPage({
     (sum, row) => sum + row.balance,
     0
   );
-  const totalEquity = equityRows.reduce((sum, row) => sum + row.balance, 0);
+  const totalEquityBeforeResult = equityRows.reduce(
+    (sum, row) => sum + row.balance,
+    0
+  );
 
   const totalIncome = incomeRows.reduce((sum, row) => sum + row.balance, 0);
   const totalExpenses = expenseRows.reduce((sum, row) => sum + row.balance, 0);
   const profitOrLoss = Number((totalIncome - totalExpenses).toFixed(2));
 
-  const totalLiabilitiesAndEquity = totalLiabilities + totalEquity;
+  const totalOci = ociRows.reduce((sum, row) => sum + row.balance, 0);
+  const totalComprehensiveIncome = Number((profitOrLoss + totalOci).toFixed(2));
+
+  const totalEquityIncludingCurrentResult = Number(
+    (totalEquityBeforeResult + totalComprehensiveIncome).toFixed(2)
+  );
+
+  const totalLiabilitiesAndEquity = Number(
+    (totalLiabilities + totalEquityIncludingCurrentResult).toFixed(2)
+  );
+
   const statementDifference = Number(
     (totalAssets - totalLiabilitiesAndEquity).toFixed(2)
   );
@@ -272,7 +301,7 @@ export default async function FinancialStatementsPage({
 
   const baseCurrencyCode = organisation.base_currency_code;
 
-  function renderRows(rows: StatementRow[], emptyMessage: string) {
+  function renderFsRows(rows: FsLineRow[], emptyMessage: string) {
     if (rows.length === 0) {
       return (
         <div className="px-6 py-8 text-sm text-slate-500">{emptyMessage}</div>
@@ -283,21 +312,23 @@ export default async function FinancialStatementsPage({
       <div className="divide-y divide-[#D9E3F4]">
         {rows.map((row) => (
           <div
-            key={row.accountId}
-            className="grid gap-4 px-6 py-5 text-sm md:grid-cols-[1fr_0.5fr_0.35fr]"
+            key={row.key}
+            className="grid gap-4 px-6 py-5 text-sm md:grid-cols-[1fr_0.45fr_0.35fr]"
           >
             <div>
               <div className="font-semibold text-slate-950">
-                {row.accountCode} - {row.accountName}
+                {row.fsLineItem}
               </div>
               <div className="mt-1 text-xs text-slate-500">
-                {row.fsLineItem}
+                FS section: {row.fsSection}
               </div>
             </div>
 
             <div className="text-slate-600">
               <div>{formatStatus(row.accountSubtype)}</div>
-              <div className="mt-1 text-xs text-slate-500">{row.fsSection}</div>
+              <div className="mt-1 text-xs text-slate-500">
+                Aggregated accounts: {row.accountCount}
+              </div>
             </div>
 
             <div className="text-right font-semibold text-slate-950">
@@ -329,17 +360,17 @@ export default async function FinancialStatementsPage({
 
               <div>
                 <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
-                  Financial Statements
+                  IFRS-Aligned Financial Statements Foundation
                 </div>
 
                 <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950">
-                  Financial statements foundation
+                  Financial statements
                 </h1>
 
                 <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
-                  Review read-only financial statement outputs for{" "}
-                  {organisationName}, generated from posted General Ledger lines
-                  and chart of accounts financial statement mapping.
+                  Review financial statement line items for {organisationName},
+                  generated from posted General Ledger lines and aggregated by
+                  mapped FS line item, not individual GL account name.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-3">
@@ -386,7 +417,7 @@ export default async function FinancialStatementsPage({
               Total Assets
             </div>
             <div className="mt-3 text-2xl font-semibold text-slate-950">
-              {formatMoney(organisation.base_currency_code, totalAssets)}
+              {formatMoney(baseCurrencyCode, totalAssets)}
             </div>
           </div>
 
@@ -395,16 +426,16 @@ export default async function FinancialStatementsPage({
               Total Liabilities
             </div>
             <div className="mt-3 text-2xl font-semibold text-slate-950">
-              {formatMoney(organisation.base_currency_code, totalLiabilities)}
+              {formatMoney(baseCurrencyCode, totalLiabilities)}
             </div>
           </div>
 
           <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-white p-6 shadow-sm">
             <div className="text-sm font-semibold text-slate-500">
-              Total Equity
+              Equity Including Current Result
             </div>
             <div className="mt-3 text-2xl font-semibold text-slate-950">
-              {formatMoney(organisation.base_currency_code, totalEquity)}
+              {formatMoney(baseCurrencyCode, totalEquityIncludingCurrentResult)}
             </div>
           </div>
 
@@ -424,7 +455,7 @@ export default async function FinancialStatementsPage({
               Total Income
             </div>
             <div className="mt-3 text-2xl font-semibold text-slate-950">
-              {formatMoney(organisation.base_currency_code, totalIncome)}
+              {formatMoney(baseCurrencyCode, totalIncome)}
             </div>
           </div>
 
@@ -433,7 +464,7 @@ export default async function FinancialStatementsPage({
               Total Expenses
             </div>
             <div className="mt-3 text-2xl font-semibold text-slate-950">
-              {formatMoney(organisation.base_currency_code, totalExpenses)}
+              {formatMoney(baseCurrencyCode, totalExpenses)}
             </div>
           </div>
 
@@ -442,10 +473,7 @@ export default async function FinancialStatementsPage({
               Profit / Surplus
             </div>
             <div className="mt-3 text-2xl font-semibold text-slate-950">
-              {formatMoney(
-                organisation.base_currency_code,
-                profitOrLoss > 0 ? profitOrLoss : 0
-              )}
+              {formatMoney(baseCurrencyCode, profitOrLoss > 0 ? profitOrLoss : 0)}
             </div>
           </div>
 
@@ -455,7 +483,7 @@ export default async function FinancialStatementsPage({
             </div>
             <div className="mt-3 text-2xl font-semibold text-slate-950">
               {formatMoney(
-                organisation.base_currency_code,
+                baseCurrencyCode,
                 profitOrLoss < 0 ? Math.abs(profitOrLoss) : 0
               )}
             </div>
@@ -470,8 +498,8 @@ export default async function FinancialStatementsPage({
                   Statement of Financial Position
                 </h2>
                 <p className="mt-2 text-sm leading-7 text-slate-500">
-                  Generated from posted General Ledger balances only. Draft
-                  journals and unposted transactions are excluded.
+                  Presented by mapped FS line items. Individual GL account names
+                  are aggregated beneath each FS item.
                 </p>
               </div>
 
@@ -482,29 +510,26 @@ export default async function FinancialStatementsPage({
                 <div className="mt-1 text-slate-600">
                   Assets less liabilities and equity:{" "}
                   <span className="font-semibold text-slate-950">
-                    {formatMoney(
-                      organisation.base_currency_code,
-                      Math.abs(statementDifference)
-                    )}
+                    {formatMoney(baseCurrencyCode, Math.abs(statementDifference))}
                   </span>
                 </div>
               </div>
             </div>
           </div>
 
-          {statementRows.length === 0 ? (
+          {assetRows.length + liabilityRows.length + equityRows.length === 0 ? (
             <div className="px-6 py-16 text-center">
               <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[#F8FAFC] text-[#073D7F]">
                 <FileSpreadsheet className="h-6 w-6" />
               </div>
 
               <h3 className="mt-5 text-lg font-semibold text-slate-950">
-                No financial statement balances yet
+                No financial position balances yet
               </h3>
 
               <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
                 The statement of financial position will appear after asset,
-                liability, and equity accounts have posted General Ledger
+                liability, and equity FS line items have posted General Ledger
                 balances.
               </p>
             </div>
@@ -515,15 +540,15 @@ export default async function FinancialStatementsPage({
                   Assets
                 </div>
 
-                {renderRows(assetRows, "No asset balances posted yet.")}
+                {renderFsRows(assetRows, "No asset FS item balances posted yet.")}
 
-                <div className="grid gap-4 bg-[#F8FAFC] px-6 py-5 text-sm md:grid-cols-[1fr_0.5fr_0.35fr]">
+                <div className="grid gap-4 bg-[#F8FAFC] px-6 py-5 text-sm md:grid-cols-[1fr_0.45fr_0.35fr]">
                   <div className="font-semibold text-slate-950">
                     Total Assets
                   </div>
                   <div />
                   <div className="text-right font-semibold text-slate-950">
-                    {formatMoney(organisation.base_currency_code, totalAssets)}
+                    {formatMoney(baseCurrencyCode, totalAssets)}
                   </div>
                 </div>
               </div>
@@ -533,21 +558,18 @@ export default async function FinancialStatementsPage({
                   Liabilities
                 </div>
 
-                {renderRows(
+                {renderFsRows(
                   liabilityRows,
-                  "No liability balances posted yet."
+                  "No liability FS item balances posted yet."
                 )}
 
-                <div className="grid gap-4 bg-[#F8FAFC] px-6 py-5 text-sm md:grid-cols-[1fr_0.5fr_0.35fr]">
+                <div className="grid gap-4 bg-[#F8FAFC] px-6 py-5 text-sm md:grid-cols-[1fr_0.45fr_0.35fr]">
                   <div className="font-semibold text-slate-950">
                     Total Liabilities
                   </div>
                   <div />
                   <div className="text-right font-semibold text-slate-950">
-                    {formatMoney(
-                      organisation.base_currency_code,
-                      totalLiabilities
-                    )}
+                    {formatMoney(baseCurrencyCode, totalLiabilities)}
                   </div>
                 </div>
               </div>
@@ -557,15 +579,39 @@ export default async function FinancialStatementsPage({
                   Equity
                 </div>
 
-                {renderRows(equityRows, "No equity balances posted yet.")}
+                {renderFsRows(
+                  equityRows,
+                  "No equity FS item balances posted yet."
+                )}
 
-                <div className="grid gap-4 bg-[#F8FAFC] px-6 py-5 text-sm md:grid-cols-[1fr_0.5fr_0.35fr]">
+                <div className="grid gap-4 border-t border-[#D9E3F4] bg-white px-6 py-5 text-sm md:grid-cols-[1fr_0.45fr_0.35fr]">
+                  <div>
+                    <div className="font-semibold text-slate-950">
+                      Current period result bridge
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      Links profit or loss and OCI to equity until closing
+                      entries / retained earnings workflow is fully built.
+                    </div>
+                  </div>
+                  <div className="text-sm text-slate-600">
+                    Profit or loss + OCI
+                  </div>
+                  <div className="text-right font-semibold text-slate-950">
+                    {formatMoney(baseCurrencyCode, totalComprehensiveIncome)}
+                  </div>
+                </div>
+
+                <div className="grid gap-4 bg-[#F8FAFC] px-6 py-5 text-sm md:grid-cols-[1fr_0.45fr_0.35fr]">
                   <div className="font-semibold text-slate-950">
-                    Total Equity
+                    Total Equity Including Current Result
                   </div>
                   <div />
                   <div className="text-right font-semibold text-slate-950">
-                    {formatMoney(organisation.base_currency_code, totalEquity)}
+                    {formatMoney(
+                      baseCurrencyCode,
+                      totalEquityIncludingCurrentResult
+                    )}
                   </div>
                 </div>
               </div>
@@ -577,16 +623,13 @@ export default async function FinancialStatementsPage({
                       Total Liabilities and Equity
                     </div>
                     <div className="mt-2 text-sm text-blue-100">
-                      Should agree to total assets after all postings and
-                      mappings are complete.
+                      Includes current period result bridge until closing entries
+                      and statement of changes in equity are fully built.
                     </div>
                   </div>
 
                   <div className="text-right text-xl font-semibold">
-                    {formatMoney(
-                      organisation.base_currency_code,
-                      totalLiabilitiesAndEquity
-                    )}
+                    {formatMoney(baseCurrencyCode, totalLiabilitiesAndEquity)}
                   </div>
                 </div>
               </div>
@@ -599,25 +642,29 @@ export default async function FinancialStatementsPage({
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <h2 className="text-xl font-semibold text-slate-950">
-                  Statement of Profit or Loss / Activities
+                  Statement of Profit or Loss and Other Comprehensive Income /
+                  Activities
                 </h2>
                 <p className="mt-2 text-sm leading-7 text-slate-500">
-                  Generated from posted General Ledger income and expense
-                  balances only. Suitable as a foundation for both business
-                  profit or loss reporting and nonprofit activities reporting.
+                  Presented by mapped FS line items from posted General Ledger
+                  balances. This foundation supports both business reporting and
+                  nonprofit activities reporting.
                 </p>
               </div>
 
               <div className="rounded-2xl bg-[#F8FAFC] px-5 py-4 text-sm">
                 <div className="font-semibold text-slate-950">
-                  Current result
+                  Total comprehensive result
                 </div>
                 <div className="mt-1 text-slate-600">
-                  {profitOrLoss >= 0 ? "Surplus / Profit" : "Deficit / Loss"}:{" "}
+                  {totalComprehensiveIncome >= 0
+                    ? "Surplus / Profit"
+                    : "Deficit / Loss"}
+                  :{" "}
                   <span className="font-semibold text-slate-950">
                     {formatMoney(
-                      organisation.base_currency_code,
-                      Math.abs(profitOrLoss)
+                      baseCurrencyCode,
+                      Math.abs(totalComprehensiveIncome)
                     )}
                   </span>
                 </div>
@@ -625,7 +672,7 @@ export default async function FinancialStatementsPage({
             </div>
           </div>
 
-          {profitLossRows.length === 0 ? (
+          {incomeRows.length + expenseRows.length + ociRows.length === 0 ? (
             <div className="px-6 py-16 text-center">
               <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[#F8FAFC] text-[#073D7F]">
                 <FileSpreadsheet className="h-6 w-6" />
@@ -636,8 +683,8 @@ export default async function FinancialStatementsPage({
               </h3>
 
               <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
-                The statement of profit or loss / activities will appear after
-                income and expense accounts have posted General Ledger balances.
+                This statement will appear after income, expense, or OCI FS line
+                items have posted General Ledger balances.
               </p>
             </div>
           ) : (
@@ -647,15 +694,15 @@ export default async function FinancialStatementsPage({
                   Income
                 </div>
 
-                {renderRows(incomeRows, "No income balances posted yet.")}
+                {renderFsRows(incomeRows, "No income FS item balances posted yet.")}
 
-                <div className="grid gap-4 bg-[#F8FAFC] px-6 py-5 text-sm md:grid-cols-[1fr_0.5fr_0.35fr]">
+                <div className="grid gap-4 bg-[#F8FAFC] px-6 py-5 text-sm md:grid-cols-[1fr_0.45fr_0.35fr]">
                   <div className="font-semibold text-slate-950">
                     Total Income
                   </div>
                   <div />
                   <div className="text-right font-semibold text-slate-950">
-                    {formatMoney(organisation.base_currency_code, totalIncome)}
+                    {formatMoney(baseCurrencyCode, totalIncome)}
                   </div>
                 </div>
               </div>
@@ -665,18 +712,53 @@ export default async function FinancialStatementsPage({
                   Expenses
                 </div>
 
-                {renderRows(expenseRows, "No expense balances posted yet.")}
+                {renderFsRows(
+                  expenseRows,
+                  "No expense FS item balances posted yet."
+                )}
 
-                <div className="grid gap-4 bg-[#F8FAFC] px-6 py-5 text-sm md:grid-cols-[1fr_0.5fr_0.35fr]">
+                <div className="grid gap-4 bg-[#F8FAFC] px-6 py-5 text-sm md:grid-cols-[1fr_0.45fr_0.35fr]">
                   <div className="font-semibold text-slate-950">
                     Total Expenses
                   </div>
                   <div />
                   <div className="text-right font-semibold text-slate-950">
-                    {formatMoney(
-                      organisation.base_currency_code,
-                      totalExpenses
-                    )}
+                    {formatMoney(baseCurrencyCode, totalExpenses)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-b border-[#D9E3F4] bg-white">
+                <div className="grid gap-4 px-6 py-5 text-sm md:grid-cols-[1fr_0.45fr_0.35fr]">
+                  <div>
+                    <div className="font-semibold text-slate-950">
+                      Profit or Loss / Surplus or Deficit for the Period
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      Income less expenses.
+                    </div>
+                  </div>
+                  <div />
+                  <div className="text-right font-semibold text-slate-950">
+                    {formatMoney(baseCurrencyCode, profitOrLoss)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-b border-[#D9E3F4]">
+                <div className="bg-[#F8FAFC] px-6 py-4 text-sm font-semibold uppercase tracking-[0.18em] text-[#6491DE]">
+                  Other Comprehensive Income
+                </div>
+
+                {renderFsRows(ociRows, "No OCI FS item balances posted yet.")}
+
+                <div className="grid gap-4 bg-[#F8FAFC] px-6 py-5 text-sm md:grid-cols-[1fr_0.45fr_0.35fr]">
+                  <div className="font-semibold text-slate-950">
+                    Total Other Comprehensive Income
+                  </div>
+                  <div />
+                  <div className="text-right font-semibold text-slate-950">
+                    {formatMoney(baseCurrencyCode, totalOci)}
                   </div>
                 </div>
               </div>
@@ -685,20 +767,16 @@ export default async function FinancialStatementsPage({
                 <div className="grid gap-4 md:grid-cols-[1fr_0.45fr]">
                   <div>
                     <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[#6491DE]">
-                      {profitOrLoss >= 0
-                        ? "Surplus / Profit for the period"
-                        : "Deficit / Loss for the period"}
+                      Total Comprehensive Income / Result
                     </div>
                     <div className="mt-2 text-sm text-blue-100">
-                      Calculated from posted income less posted expenses.
+                      Links to equity through the current period result bridge
+                      until closing entries and changes in equity are built.
                     </div>
                   </div>
 
                   <div className="text-right text-xl font-semibold">
-                    {formatMoney(
-                      organisation.base_currency_code,
-                      Math.abs(profitOrLoss)
-                    )}
+                    {formatMoney(baseCurrencyCode, totalComprehensiveIncome)}
                   </div>
                 </div>
               </div>
@@ -718,20 +796,22 @@ export default async function FinancialStatementsPage({
               </div>
 
               <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
-                Read-only financial statements foundation
+                Foundation-stage IFRS-aligned reporting
               </h2>
 
               <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600">
                 These statements are generated from posted General Ledger lines
-                only. This is not yet a final unaudited financial statement
-                pack. Future versions will include statement of cash flows,
-                statement of changes in equity, notes, review controls, export,
-                and reporting period filters.
+                and mapped FS line items only. This is not yet a complete IFRS
+                or IAS-compliant financial statement pack. Full compliance will
+                require reporting periods, comparatives, statement of changes in
+                equity, statement of cash flows, notes, accounting policies,
+                disclosures, review controls, and export-ready financial
+                statement formatting.
               </p>
 
               <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#F1F1F1] px-4 py-2 text-sm font-semibold text-[#073D7F]">
                 <CheckCircle className="h-4 w-4" />
-                Ready for future IFRS-ready financial statement pack
+                Ready for future full financial statement pack workflow
               </div>
             </div>
           </div>
