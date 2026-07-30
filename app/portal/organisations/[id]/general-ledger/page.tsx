@@ -39,6 +39,14 @@ type GeneralLedgerEntryRow = {
   created_at: string | null;
 };
 
+type AccountingPeriod = {
+  id: string;
+  period_name: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  status: string | null;
+};
+
 function formatDate(value: string | null) {
   if (!value) return "—";
 
@@ -80,10 +88,21 @@ function formatModule(value: string | null) {
 
 export default async function GeneralLedgerPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{
+    period?: string;
+    start_date?: string;
+    end_date?: string;
+  }>;
 }) {
   const { id } = await params;
+  const resolvedSearchParams = await searchParams;
+
+  const selectedPeriodId = resolvedSearchParams.period || "";
+  const customStartDate = resolvedSearchParams.start_date || "";
+  const customEndDate = resolvedSearchParams.end_date || "";
 
   const supabase = await createClient();
 
@@ -115,15 +134,56 @@ export default async function GeneralLedgerPage({
     redirect("/portal/organisations");
   }
 
+  const { data: periodRows } = await supabase
+    .from("accounting_periods")
+    .select("id, period_name, start_date, end_date, status")
+    .eq("organisation_id", id)
+    .order("start_date", { ascending: false });
+
+  const accountingPeriods = (periodRows || []) as AccountingPeriod[];
+
+  const selectedPeriod =
+    accountingPeriods.find((period) => period.id === selectedPeriodId) || null;
+
+  let generalLedgerEntriesQuery = supabase
+    .from("general_ledger_entries")
+    .select(
+      "id, entry_number, entry_date, source_module, source_record_id, source_reference, description, currency_code, total_debits, total_credits, status, posted_at, created_at"
+    )
+    .eq("organisation_id", id)
+    .order("entry_date", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (selectedPeriod?.start_date) {
+    generalLedgerEntriesQuery = generalLedgerEntriesQuery.gte(
+      "entry_date",
+      selectedPeriod.start_date
+    );
+  }
+
+  if (selectedPeriod?.end_date) {
+    generalLedgerEntriesQuery = generalLedgerEntriesQuery.lte(
+      "entry_date",
+      selectedPeriod.end_date
+    );
+  }
+
+  if (!selectedPeriod && customStartDate) {
+    generalLedgerEntriesQuery = generalLedgerEntriesQuery.gte(
+      "entry_date",
+      customStartDate
+    );
+  }
+
+  if (!selectedPeriod && customEndDate) {
+    generalLedgerEntriesQuery = generalLedgerEntriesQuery.lte(
+      "entry_date",
+      customEndDate
+    );
+  }
+
   const { data: generalLedgerEntries, error: generalLedgerEntriesError } =
-    await supabase
-      .from("general_ledger_entries")
-      .select(
-        "id, entry_number, entry_date, source_module, source_record_id, source_reference, description, currency_code, total_debits, total_credits, status, posted_at, created_at"
-      )
-      .eq("organisation_id", id)
-      .order("entry_date", { ascending: false })
-      .order("created_at", { ascending: false });
+    await generalLedgerEntriesQuery;
 
   if (generalLedgerEntriesError) {
     console.error(
@@ -190,10 +250,143 @@ export default async function GeneralLedgerPage({
                 </p>
 
                 <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-500">
-                  Posting is intentionally not active yet. Ledger records will
-                  appear here after Kiamina adds controlled posting, review,
-                  approval, and audit trail workflows.
+                  This register now supports saved reporting periods and custom
+                  date ranges. The filter is based on the General Ledger entry
+                  date.
                 </p>
+
+                <form
+                  action={`/portal/organisations/${organisation.id}/general-ledger`}
+                  method="get"
+                  className="mt-6 rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-5"
+                >
+                  <div className="grid gap-4 xl:grid-cols-[1.2fr_0.7fr_0.7fr_auto] xl:items-end">
+                    <div>
+                      <label
+                        htmlFor="period"
+                        className="text-sm font-semibold text-slate-700"
+                      >
+                        Reporting period
+                      </label>
+
+                      <select
+                        id="period"
+                        name="period"
+                        defaultValue={selectedPeriodId}
+                        className="mt-2 w-full rounded-2xl border border-[#D9E3F4] bg-white px-4 py-3 text-sm font-medium text-slate-800 outline-none"
+                      >
+                        <option value="">
+                          All General Ledger entries
+                        </option>
+
+                        {accountingPeriods.map((period) => (
+                          <option key={period.id} value={period.id}>
+                            {period.period_name || "Unnamed period"}{" "}
+                            {period.start_date && period.end_date
+                              ? `(${period.start_date} to ${period.end_date})`
+                              : ""}
+                          </option>
+                        ))}
+                      </select>
+
+                      <p className="mt-2 text-xs leading-5 text-slate-500">
+                        Select a saved accounting period, or leave it blank and
+                        use a custom date range.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="start_date"
+                        className="text-sm font-semibold text-slate-700"
+                      >
+                        Custom start date
+                      </label>
+
+                      <input
+                        id="start_date"
+                        name="start_date"
+                        type="date"
+                        defaultValue={customStartDate}
+                        className="mt-2 w-full rounded-2xl border border-[#D9E3F4] bg-white px-4 py-3 text-sm font-medium text-slate-800 outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="end_date"
+                        className="text-sm font-semibold text-slate-700"
+                      >
+                        Custom end date
+                      </label>
+
+                      <input
+                        id="end_date"
+                        name="end_date"
+                        type="date"
+                        defaultValue={customEndDate}
+                        className="mt-2 w-full rounded-2xl border border-[#D9E3F4] bg-white px-4 py-3 text-sm font-medium text-slate-800 outline-none"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="inline-flex items-center justify-center rounded-full bg-[#073D7F] px-6 py-3 text-sm font-semibold text-white shadow-sm"
+                    >
+                      Apply
+                    </button>
+                  </div>
+
+                  <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    {selectedPeriod ? (
+                      <div className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-600">
+                        Current view:{" "}
+                        <span className="font-semibold text-slate-950">
+                          {selectedPeriod.period_name || "Unnamed period"}
+                        </span>{" "}
+                        {selectedPeriod.start_date && selectedPeriod.end_date
+                          ? `from ${selectedPeriod.start_date} to ${selectedPeriod.end_date}`
+                          : ""}
+                      </div>
+                    ) : customStartDate || customEndDate ? (
+                      <div className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-600">
+                        Current view:{" "}
+                        <span className="font-semibold text-slate-950">
+                          Custom period
+                        </span>{" "}
+                        {customStartDate
+                          ? `from ${customStartDate}`
+                          : "from beginning"}{" "}
+                        {customEndDate
+                          ? `to ${customEndDate}`
+                          : "to latest ledger entry"}
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-600">
+                        Current view:{" "}
+                        <span className="font-semibold text-slate-950">
+                          All General Ledger entries
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-3">
+                      <a
+                        href={`/portal/organisations/${organisation.id}/general-ledger`}
+                        className="inline-flex items-center justify-center rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
+                      >
+                        Clear Filter
+                      </a>
+
+                      <a
+                        href={`/portal/organisations/${organisation.id}/periods/new`}
+                        className="inline-flex items-center justify-center rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
+                      >
+                        Create Period
+                      </a>
+                    </div>
+                  </div>
+                </form>
               </div>
             </div>
 
@@ -218,7 +411,7 @@ export default async function GeneralLedgerPage({
               {ledgerRows.length}
             </div>
             <p className="mt-2 text-sm text-slate-500">
-              All GL entries recorded.
+              Entries in current view.
             </p>
           </div>
 
@@ -242,7 +435,7 @@ export default async function GeneralLedgerPage({
               {postedCount}
             </div>
             <p className="mt-2 text-sm text-slate-500">
-              Approved ledger postings.
+              Posted entries in current view.
             </p>
           </div>
 
@@ -270,13 +463,14 @@ export default async function GeneralLedgerPage({
               </h2>
               <p className="mt-1 text-sm text-slate-500">
                 A controlled register of draft, approved, posted, reversed, and
-                void ledger entries.
+                void ledger entries filtered by selected period or custom date
+                range.
               </p>
             </div>
 
             <div className="inline-flex items-center gap-2 rounded-full border border-[#D9E3F4] bg-[#F8FAFC] px-4 py-2 text-sm text-slate-500">
               <Search className="h-4 w-4" />
-              Search and filters will be added later
+              Search by account and source will be added later
             </div>
           </div>
 
@@ -287,13 +481,13 @@ export default async function GeneralLedgerPage({
               </div>
 
               <h3 className="mt-5 text-lg font-semibold text-slate-950">
-                No ledger entries yet
+                No ledger entries in this view
               </h3>
 
               <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
-                This is expected for now. General ledger posting has not yet
-                been enabled. Once controlled posting is added, entries from
-                approved journals and source transactions will appear here.
+                There are no General Ledger entries for the selected reporting
+                period or custom date range. Clear the filter or select another
+                period to view available ledger records.
               </p>
 
               <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -405,10 +599,12 @@ export default async function GeneralLedgerPage({
 
         <div className="mt-6 rounded-[1.5rem] border border-[#D9E3F4] bg-white p-6 text-sm leading-7 text-slate-600 shadow-sm">
           <span className="font-semibold text-slate-950">Control note:</span>{" "}
-          The general ledger is the posting layer. It should only receive
-          entries after controlled review, approval, and posting workflows are
-          enabled. Draft business records should not update the ledger
-          automatically.
+          The general ledger is the posting layer. The saved reporting period
+          selector and custom date range are foundation controls and filter the
+          register by General Ledger entry date. The module remains
+          foundation-stage until full review, approval, reversal, source
+          transaction posting, period locking, and audit trail workflows are
+          completed.
         </div>
       </section>
     </main>
