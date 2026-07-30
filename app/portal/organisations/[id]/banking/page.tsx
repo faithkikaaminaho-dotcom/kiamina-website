@@ -337,6 +337,12 @@ export default async function BankingPage({
                   <div className="mt-5 text-xs text-slate-500">
                     Created: {formatDate(account.created_at)}
                   </div>
+                  <a
+  href={`/portal/organisations/${organisation.id}/banking/${account.id}`}
+  className="mt-5 inline-flex rounded-full bg-[#073D7F] px-5 py-3 text-sm font-semibold text-white"
+>
+  Open Bank Account
+</a>
                 </div>
               ))
             ) : (
