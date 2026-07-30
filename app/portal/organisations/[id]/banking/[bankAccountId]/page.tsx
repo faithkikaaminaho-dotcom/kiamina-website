@@ -35,6 +35,8 @@ type SourceCandidate = {
   status: string | null;
 };
 
+type BankFeedTab = "unreconciled" | "reconciled" | "excluded";
+
 function formatMoney(currencyCode?: string | null, amount?: number | null) {
   return `${currencyCode || "—"} ${Number(amount || 0).toLocaleString(
     "en-US",
@@ -99,12 +101,36 @@ function toNumber(value: unknown) {
   return Number.isFinite(numericValue) ? numericValue : 0;
 }
 
+function getTabStatuses(tab: BankFeedTab) {
+  if (tab === "reconciled") {
+    return ["MATCHED", "ADDED_TO_BOOKS", "RECONCILED"];
+  }
+
+  if (tab === "excluded") {
+    return ["IGNORED", "EXCLUDED"];
+  }
+
+  return ["UNMATCHED", "POSSIBLE_MATCH"];
+}
+
 export default async function BankAccountDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string; bankAccountId: string }>;
+  searchParams?: Promise<{ tab?: string }>;
 }) {
   const { id, bankAccountId } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+
+  const selectedTab: BankFeedTab =
+    resolvedSearchParams?.tab === "reconciled"
+      ? "reconciled"
+      : resolvedSearchParams?.tab === "excluded"
+      ? "excluded"
+      : "unreconciled";
+
+  const selectedStatuses = getTabStatuses(selectedTab);
 
   const supabase = await createClient();
 
@@ -202,6 +228,7 @@ export default async function BankAccountDetailPage({
     )
     .eq("organisation_id", id)
     .eq("bank_account_id", bankAccountId)
+    .in("reconciliation_status", selectedStatuses)
     .order("transaction_date", { ascending: false })
     .limit(50);
 
@@ -418,6 +445,27 @@ export default async function BankAccountDetailPage({
   const organisationName =
     organisation.trading_name || organisation.legal_name || "Organisation";
 
+  const tabs = [
+    {
+      key: "unreconciled",
+      label: "Unreconciled",
+      count: unreconciledLinesCount ?? 0,
+      href: `/portal/organisations/${organisation.id}/banking/${bankAccount.id}?tab=unreconciled`,
+    },
+    {
+      key: "reconciled",
+      label: "Reconciled",
+      count: reconciledLinesCount ?? 0,
+      href: `/portal/organisations/${organisation.id}/banking/${bankAccount.id}?tab=reconciled`,
+    },
+    {
+      key: "excluded",
+      label: "Excluded",
+      count: excludedLinesCount ?? 0,
+      href: `/portal/organisations/${organisation.id}/banking/${bankAccount.id}?tab=excluded`,
+    },
+  ];
+
   return (
     <main className="min-h-screen bg-[#F8FAFC]">
       <section className="border-b border-[#D9E3F4] bg-white">
@@ -631,8 +679,9 @@ export default async function BankAccountDetailPage({
                 </h2>
 
                 <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-500">
-                  Match, exclude, or open bank lines directly from this feed.
-                  Add-to-books will be added next for unmatched items.
+                  Imported bank statement lines appear under Unreconciled by
+                  default. Matched or added items move to Reconciled. Excluded
+                  items move to Excluded.
                 </p>
               </div>
 
@@ -645,9 +694,40 @@ export default async function BankAccountDetailPage({
             </div>
           </div>
 
+          <div className="border-b border-[#D9E3F4] bg-[#F8FAFC] px-6 py-4">
+            <div className="flex flex-wrap gap-3">
+              {tabs.map((tab) => {
+                const isActive = tab.key === selectedTab;
+
+                return (
+                  <a
+                    key={tab.key}
+                    href={tab.href}
+                    className={
+                      isActive
+                        ? "inline-flex items-center gap-2 rounded-full bg-[#073D7F] px-5 py-2.5 text-sm font-semibold text-white"
+                        : "inline-flex items-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-5 py-2.5 text-sm font-semibold text-[#073D7F]"
+                    }
+                  >
+                    {tab.label}
+                    <span
+                      className={
+                        isActive
+                          ? "rounded-full bg-white/20 px-2 py-0.5 text-xs text-white"
+                          : "rounded-full bg-[#F1F1F1] px-2 py-0.5 text-xs text-slate-600"
+                      }
+                    >
+                      {tab.count}
+                    </span>
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+
           {!statementLines || statementLines.length === 0 ? (
             <div className="px-6 py-12 text-center text-sm text-slate-500">
-              No bank statement lines imported yet.
+              No {selectedTab} bank statement lines found.
             </div>
           ) : (
             <div className="overflow-x-auto">
