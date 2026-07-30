@@ -4,6 +4,7 @@ import QuickEngagementForm from "./QuickEngagementForm";
 import {
   ArrowLeft,
   Archive,
+  Banknote,
   BookOpenCheck,
   Building2,
   CalendarDays,
@@ -267,6 +268,23 @@ export default async function OrganisationDetailPage({
     .select("*", { count: "exact", head: true })
     .eq("organisation_id", id)
     .eq("status", "POSTED");
+
+  const { count: bankAccountsCount } = await supabase
+    .from("bank_accounts")
+    .select("*", { count: "exact", head: true })
+    .eq("organisation_id", id)
+    .eq("is_active", true);
+
+  const { count: bankStatementLinesCount } = await supabase
+    .from("bank_statement_lines")
+    .select("*", { count: "exact", head: true })
+    .eq("organisation_id", id);
+
+  const { count: unmatchedBankLinesCount } = await supabase
+    .from("bank_statement_lines")
+    .select("*", { count: "exact", head: true })
+    .eq("organisation_id", id)
+    .eq("reconciliation_status", "UNMATCHED");
 
   const { data: recentDocuments } = await supabase
     .from("documents")
@@ -724,6 +742,24 @@ export default async function OrganisationDetailPage({
       },
     },
     {
+      title: "Banking",
+      description:
+        "Manage bank accounts, uploaded bank statements, extracted bank lines, matching, and reconciliation before Trial Balance review.",
+      icon: Banknote,
+      countLabel: "Bank Accounts",
+      countValue: bankAccountsCount ?? 0,
+      secondaryLabel: "Unmatched Lines",
+      secondaryValue: unmatchedBankLinesCount ?? 0,
+      primaryAction: {
+        label: "Open Banking",
+        href: `/portal/organisations/${organisation.id}/banking`,
+      },
+      secondaryAction: {
+        label: "Add Bank Account",
+        href: `/portal/organisations/${organisation.id}/banking/bank-accounts/new`,
+      },
+    },
+    {
       title: "Funding",
       description:
         "Track capital calls, investor funding, grants, loans, repayments, and funding movements.",
@@ -876,7 +912,7 @@ export default async function OrganisationDetailPage({
 
               <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
                 A central workspace for documents, engagements, accounting,
-                journals, receivables, payables, funding, reporting,
+                banking, journals, receivables, payables, funding, reporting,
                 compliance, and advisory workflows for {organisationName}.
               </p>
 
@@ -1030,6 +1066,14 @@ export default async function OrganisationDetailPage({
               >
                 <CalendarDays className="h-4 w-4" />
                 Period Control
+              </a>
+
+              <a
+                href={`/portal/organisations/${organisation.id}/banking`}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
+              >
+                <Banknote className="h-4 w-4" />
+                Banking
               </a>
 
               <a
@@ -1929,9 +1973,10 @@ export default async function OrganisationDetailPage({
               </h2>
 
               <p className="mt-4 max-w-3xl text-base leading-8 text-blue-100">
-                Documents, engagements, accounting records, journals, tax,
-                payroll, compliance, financial reporting, and advisory workflows
-                connect through this organisation model.
+                Documents, engagements, accounting records, banking, bank
+                reconciliation, journals, tax, payroll, compliance, financial
+                reporting, and advisory workflows connect through this
+                organisation model.
               </p>
             </div>
 
@@ -1940,8 +1985,11 @@ export default async function OrganisationDetailPage({
                 "Documents",
                 "Engagements",
                 "Accounting",
+                "Banking",
+                "Bank Reconciliation",
                 "Journals",
                 "General Ledger",
+                "Trial Balance",
                 "Financial Reporting",
                 "Tax",
                 "Payroll",
