@@ -47,7 +47,7 @@ export default async function NewAccountingPeriodPage({
   const { data: organisation } = await supabase
     .from("organisations")
     .select(
-      "id, legal_name, trading_name, reporting_framework_code, base_currency_code"
+      "id, legal_name, trading_name, reporting_framework_code, base_currency_code, accounting_year_start_month, accounting_year_start_day, accounting_year_end_month, accounting_year_end_day"
     )
     .eq("id", id)
     .single();
@@ -73,11 +73,11 @@ export default async function NewAccountingPeriodPage({
       <section className="border-b border-[#D9E3F4] bg-white">
         <div className="mx-auto max-w-6xl px-6 py-8 lg:px-8">
           <a
-            href={`/portal/organisations/${organisation.id}`}
+            href={`/portal/organisations/${organisation.id}/periods`}
             className="inline-flex items-center gap-2 text-sm font-semibold text-[#073D7F]"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to organisation workspace
+            Back to period control
           </a>
 
           <div className="mt-8 flex items-start gap-5">
@@ -87,18 +87,17 @@ export default async function NewAccountingPeriodPage({
 
             <div>
               <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
-                Reporting Period
+                Period Control
               </div>
 
               <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950">
-                Create accounting period
+                Create lock, close, or reporting range
               </h1>
 
               <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
-                Create a monthly, quarterly, six-monthly, yearly, interim FS, or
-                custom reporting period for {organisationName}. This period will
-                later support management commentary, period events, accounting
-                reports, financial statements, and advisory outputs.
+                Create a date range for {organisationName}. You can manually
+                select dates or generate month, quarter, six-month, and year-end
+                ranges from the organisation’s saved accounting year setup.
               </p>
             </div>
           </div>
@@ -111,6 +110,10 @@ export default async function NewAccountingPeriodPage({
           engagements={engagements || []}
           defaultFramework={defaultFramework}
           defaultCurrency={defaultCurrency}
+          accountingYearStartMonth={organisation.accounting_year_start_month}
+          accountingYearStartDay={organisation.accounting_year_start_day}
+          accountingYearEndMonth={organisation.accounting_year_end_month}
+          accountingYearEndDay={organisation.accounting_year_end_day}
         />
       </section>
     </main>

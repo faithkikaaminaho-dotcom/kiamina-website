@@ -63,22 +63,104 @@ const statusOptions = [
   },
 ];
 
+const months = [
+  { value: 1, label: "January" },
+  { value: 2, label: "February" },
+  { value: 3, label: "March" },
+  { value: 4, label: "April" },
+  { value: 5, label: "May" },
+  { value: 6, label: "June" },
+  { value: 7, label: "July" },
+  { value: 8, label: "August" },
+  { value: 9, label: "September" },
+  { value: 10, label: "October" },
+  { value: 11, label: "November" },
+  { value: 12, label: "December" },
+];
+
+function toDateInputValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function getLastDayOfMonth(year: number, month: number) {
+  return new Date(year, month, 0).getDate();
+}
+
+function makeDate(year: number, month: number, day: number) {
+  const safeDay = Math.min(day, getLastDayOfMonth(year, month));
+  return new Date(year, month - 1, safeDay);
+}
+
+function addMonths(date: Date, monthsToAdd: number) {
+  const result = new Date(date);
+  result.setMonth(result.getMonth() + monthsToAdd);
+  return result;
+}
+
+function addDays(date: Date, daysToAdd: number) {
+  const result = new Date(date);
+  result.setDate(result.getDate() + daysToAdd);
+  return result;
+}
+
+function formatAccountingYear({
+  startMonth,
+  startDay,
+  endMonth,
+  endDay,
+}: {
+  startMonth?: number | null;
+  startDay?: number | null;
+  endMonth?: number | null;
+  endDay?: number | null;
+}) {
+  if (!startMonth || !startDay || !endMonth || !endDay) {
+    return "Not configured";
+  }
+
+  return `${String(startDay).padStart(2, "0")}/${String(startMonth).padStart(
+    2,
+    "0"
+  )} to ${String(endDay).padStart(2, "0")}/${String(endMonth).padStart(
+    2,
+    "0"
+  )}`;
+}
+
 export default function CreateAccountingPeriodForm({
   organisationId,
   engagements,
   defaultFramework,
   defaultCurrency,
+  accountingYearStartMonth,
+  accountingYearStartDay,
+  accountingYearEndMonth,
+  accountingYearEndDay,
 }: {
   organisationId: string;
   engagements: EngagementOption[];
   defaultFramework?: string | null;
   defaultCurrency?: string | null;
+  accountingYearStartMonth?: number | null;
+  accountingYearStartDay?: number | null;
+  accountingYearEndMonth?: number | null;
+  accountingYearEndDay?: number | null;
 }) {
   const router = useRouter();
+
+  const currentYear = new Date().getFullYear();
 
   const [periodName, setPeriodName] = useState("");
   const [periodType, setPeriodType] = useState("PERIOD_LOCK");
   const [status, setStatus] = useState("LOCKED");
+  const [rangeYear, setRangeYear] = useState(currentYear);
+  const [rangeMonth, setRangeMonth] = useState(1);
+  const [rangeQuarter, setRangeQuarter] = useState(1);
+  const [rangeHalf, setRangeHalf] = useState(1);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [lockReason, setLockReason] = useState("");
@@ -89,6 +171,19 @@ export default function CreateAccountingPeriodForm({
   const [currencyCode, setCurrencyCode] = useState(defaultCurrency || "");
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+
+  const accountingYearIsConfigured =
+    Boolean(accountingYearStartMonth) &&
+    Boolean(accountingYearStartDay) &&
+    Boolean(accountingYearEndMonth) &&
+    Boolean(accountingYearEndDay);
+
+  const accountingYearLabel = formatAccountingYear({
+    startMonth: accountingYearStartMonth,
+    startDay: accountingYearStartDay,
+    endMonth: accountingYearEndMonth,
+    endDay: accountingYearEndDay,
+  });
 
   function handlePeriodTypeChange(nextPeriodType: string) {
     setPeriodType(nextPeriodType);
@@ -107,6 +202,159 @@ export default function CreateAccountingPeriodForm({
       (status === "LOCKED" || status === "CLOSED")
     ) {
       setStatus("OPEN");
+    }
+  }
+
+  function generateMonthlyRange() {
+    const start = makeDate(rangeYear, rangeMonth, 1);
+    const end = makeDate(rangeYear, rangeMonth, getLastDayOfMonth(rangeYear, rangeMonth));
+
+    setStartDate(toDateInputValue(start));
+    setEndDate(toDateInputValue(end));
+    setPeriodType("MONTHLY");
+
+    if (!periodName) {
+      const monthLabel =
+        months.find((month) => month.value === rangeMonth)?.label || "Month";
+      setPeriodName(`${monthLabel} ${rangeYear} Period Lock`);
+    }
+
+    setStatus("LOCKED");
+  }
+
+  function generateQuarterRange() {
+    const firstMonth = (rangeQuarter - 1) * 3 + 1;
+    const lastMonth = firstMonth + 2;
+
+    const start = makeDate(rangeYear, firstMonth, 1);
+    const end = makeDate(
+      rangeYear,
+      lastMonth,
+      getLastDayOfMonth(rangeYear, lastMonth)
+    );
+
+    setStartDate(toDateInputValue(start));
+    setEndDate(toDateInputValue(end));
+    setPeriodType("QUARTERLY");
+
+    if (!periodName) {
+      setPeriodName(`Q${rangeQuarter} ${rangeYear} Period Lock`);
+    }
+
+    setStatus("LOCKED");
+  }
+
+  function generateSixMonthRange() {
+    const firstMonth = rangeHalf === 1 ? 1 : 7;
+    const lastMonth = rangeHalf === 1 ? 6 : 12;
+
+    const start = makeDate(rangeYear, firstMonth, 1);
+    const end = makeDate(
+      rangeYear,
+      lastMonth,
+      getLastDayOfMonth(rangeYear, lastMonth)
+    );
+
+    setStartDate(toDateInputValue(start));
+    setEndDate(toDateInputValue(end));
+    setPeriodType("SIX_MONTHLY");
+
+    if (!periodName) {
+      setPeriodName(
+        `${rangeHalf === 1 ? "First" : "Second"} Half ${rangeYear} Period Lock`
+      );
+    }
+
+    setStatus("LOCKED");
+  }
+
+  function generateAccountingYearRange() {
+    if (!accountingYearIsConfigured) {
+      setErrorMessage(
+        "Accounting year is not configured. Go to Organisation Settings and save the accounting year first."
+      );
+      return;
+    }
+
+    setErrorMessage("");
+
+    const startMonth = Number(accountingYearStartMonth);
+    const startDay = Number(accountingYearStartDay);
+    const endMonth = Number(accountingYearEndMonth);
+    const endDay = Number(accountingYearEndDay);
+
+    const endYear = endMonth < startMonth ? rangeYear + 1 : rangeYear;
+
+    const start = makeDate(rangeYear, startMonth, startDay);
+    const end = makeDate(endYear, endMonth, endDay);
+
+    setStartDate(toDateInputValue(start));
+    setEndDate(toDateInputValue(end));
+    setPeriodType("YEARLY");
+    setStatus("CLOSED");
+
+    if (!periodName) {
+      setPeriodName(`FY${endYear} Year-End Close`);
+    }
+
+    if (!lockReason) {
+      setLockReason(
+        `Accounting year close generated from organisation setup: ${accountingYearLabel}.`
+      );
+    }
+  }
+
+  function generateAccountingYearQuarterRange() {
+    if (!accountingYearIsConfigured) {
+      setErrorMessage(
+        "Accounting year is not configured. Go to Organisation Settings and save the accounting year first."
+      );
+      return;
+    }
+
+    setErrorMessage("");
+
+    const startMonth = Number(accountingYearStartMonth);
+    const startDay = Number(accountingYearStartDay);
+
+    const accountingYearStart = makeDate(rangeYear, startMonth, startDay);
+    const quarterStart = addMonths(accountingYearStart, (rangeQuarter - 1) * 3);
+    const quarterEnd = addDays(addMonths(quarterStart, 3), -1);
+
+    setStartDate(toDateInputValue(quarterStart));
+    setEndDate(toDateInputValue(quarterEnd));
+    setPeriodType("QUARTERLY");
+    setStatus("LOCKED");
+
+    if (!periodName) {
+      setPeriodName(`Accounting Year Q${rangeQuarter} ${rangeYear} Period Lock`);
+    }
+  }
+
+  function generateAccountingYearMonthRange() {
+    if (!accountingYearIsConfigured) {
+      setErrorMessage(
+        "Accounting year is not configured. Go to Organisation Settings and save the accounting year first."
+      );
+      return;
+    }
+
+    setErrorMessage("");
+
+    const startMonth = Number(accountingYearStartMonth);
+    const startDay = Number(accountingYearStartDay);
+
+    const accountingYearStart = makeDate(rangeYear, startMonth, startDay);
+    const monthStart = addMonths(accountingYearStart, rangeMonth - 1);
+    const monthEnd = addDays(addMonths(monthStart, 1), -1);
+
+    setStartDate(toDateInputValue(monthStart));
+    setEndDate(toDateInputValue(monthEnd));
+    setPeriodType("MONTHLY");
+    setStatus("LOCKED");
+
+    if (!periodName) {
+      setPeriodName(`Accounting Year Month ${rangeMonth} ${rangeYear} Lock`);
     }
   }
 
@@ -177,10 +425,146 @@ export default function CreateAccountingPeriodForm({
         </h2>
 
         <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
-          Use this form to define the exact date range you want to use for
-          reporting, review, lock, or close control. If the status is Locked or
-          Closed, journal posting into this date range will be blocked.
+          Use this form to define the exact date range for reporting, review,
+          lock, or close control. The saved accounting year is{" "}
+          <span className="font-semibold text-slate-950">
+            {accountingYearLabel}
+          </span>
+          .
         </p>
+
+        {!accountingYearIsConfigured ? (
+          <a
+            href={`/portal/organisations/${organisationId}/settings`}
+            className="mt-4 inline-flex rounded-full bg-[#073D7F] px-5 py-3 text-sm font-semibold text-white"
+          >
+            Configure Accounting Year
+          </a>
+        ) : null}
+      </div>
+
+      <div className="mb-8 rounded-[1.5rem] border border-[#D9E3F4] bg-white p-6">
+        <div className="text-sm font-semibold uppercase tracking-[0.2em] text-[#6491DE]">
+          Smart Date Range Generator
+        </div>
+
+        <h3 className="mt-3 text-xl font-semibold tracking-tight text-slate-950">
+          Generate date range from calendar or accounting year
+        </h3>
+
+        <p className="mt-2 text-sm leading-7 text-slate-600">
+          Select a year and choose the type of range to auto-fill the From Date
+          and To Date fields below.
+        </p>
+
+        <div className="mt-6 grid gap-5 md:grid-cols-4">
+          <label className="block">
+            <span className="text-sm font-semibold text-slate-700">Year</span>
+            <input
+              type="number"
+              value={rangeYear}
+              onChange={(event) => setRangeYear(Number(event.target.value))}
+              className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-semibold text-slate-700">
+              Calendar month
+            </span>
+            <select
+              value={rangeMonth}
+              onChange={(event) => setRangeMonth(Number(event.target.value))}
+              className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
+            >
+              {months.map((month) => (
+                <option key={month.value} value={month.value}>
+                  {month.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-semibold text-slate-700">
+              Quarter
+            </span>
+            <select
+              value={rangeQuarter}
+              onChange={(event) => setRangeQuarter(Number(event.target.value))}
+              className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
+            >
+              <option value={1}>Q1</option>
+              <option value={2}>Q2</option>
+              <option value={3}>Q3</option>
+              <option value={4}>Q4</option>
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-semibold text-slate-700">
+              Six-month period
+            </span>
+            <select
+              value={rangeHalf}
+              onChange={(event) => setRangeHalf(Number(event.target.value))}
+              className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
+            >
+              <option value={1}>First half</option>
+              <option value={2}>Second half</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <button
+            type="button"
+            onClick={generateMonthlyRange}
+            className="rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
+          >
+            Calendar Month
+          </button>
+
+          <button
+            type="button"
+            onClick={generateQuarterRange}
+            className="rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
+          >
+            Calendar Quarter
+          </button>
+
+          <button
+            type="button"
+            onClick={generateSixMonthRange}
+            className="rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
+          >
+            Calendar Six-Month
+          </button>
+
+          <button
+            type="button"
+            onClick={generateAccountingYearMonthRange}
+            className="rounded-full bg-[#F1F1F1] px-5 py-3 text-sm font-semibold text-[#073D7F]"
+          >
+            Accounting Year Month
+          </button>
+
+          <button
+            type="button"
+            onClick={generateAccountingYearQuarterRange}
+            className="rounded-full bg-[#F1F1F1] px-5 py-3 text-sm font-semibold text-[#073D7F]"
+          >
+            Accounting Year Quarter
+          </button>
+
+          <button
+            type="button"
+            onClick={generateAccountingYearRange}
+            className="rounded-full bg-[#073D7F] px-5 py-3 text-sm font-semibold text-white"
+          >
+            Accounting Year Close
+          </button>
+        </div>
       </div>
 
       <div className="grid gap-5 md:grid-cols-2">
@@ -245,9 +629,7 @@ export default function CreateAccountingPeriodForm({
         </label>
 
         <label className="block">
-          <span className="text-sm font-semibold text-slate-700">
-            To date
-          </span>
+          <span className="text-sm font-semibold text-slate-700">To date</span>
           <input
             type="date"
             value={endDate}
@@ -288,9 +670,7 @@ export default function CreateAccountingPeriodForm({
         </label>
 
         <label className="block">
-          <span className="text-sm font-semibold text-slate-700">
-            Currency
-          </span>
+          <span className="text-sm font-semibold text-slate-700">Currency</span>
           <input
             value={currencyCode}
             onChange={(event) => setCurrencyCode(event.target.value)}
