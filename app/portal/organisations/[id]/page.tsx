@@ -767,6 +767,24 @@ const { count: postedGeneralLedgerEntriesCount } = await supabase
     href: `/portal/organisations/${organisation.id}/general-ledger`,
   },
 },
+{
+  title: "Financial Statements",
+  description:
+    "Review read-only financial statement outputs generated from posted General Ledger balances and chart of accounts mapping.",
+  icon: FileText,
+  countLabel: "Posted GL Entries",
+  countValue: postedGeneralLedgerEntriesCount ?? 0,
+  secondaryLabel: "Mapped Accounts",
+  secondaryValue: chartAccountsCount ?? 0,
+  primaryAction: {
+    label: "Open Statements",
+    href: `/portal/organisations/${organisation.id}/financial-statements`,
+  },
+  secondaryAction: {
+    label: "Open Trial Balance",
+    href: `/portal/organisations/${organisation.id}/trial-balance`,
+  },
+},
     {
       title: "Accounting Master Data",
       description:
@@ -981,6 +999,14 @@ const { count: postedGeneralLedgerEntriesCount } = await supabase
 >
   <FileText className="h-4 w-4" />
   Trial Balance
+</a>
+
+<a
+  href={`/portal/organisations/${organisation.id}/financial-statements`}
+  className="inline-flex items-center justify-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
+>
+  <FileText className="h-4 w-4" />
+  Financial Statements
 </a>
 
               <a
