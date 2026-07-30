@@ -172,6 +172,7 @@ export default async function FinancialStatementsPage({
 
   const accountMap = new Map(accounts.map((account) => [account.id, account]));
   const statementMap = new Map<string, StatementRow>();
+  const profitLossMap = new Map<string, StatementRow>();
 
   for (const line of ledgerLines) {
     const account = accountMap.get(line.account_id);
@@ -190,11 +191,20 @@ export default async function FinancialStatementsPage({
       movement = debitAmount - creditAmount;
     } else if (accountType === "LIABILITY" || accountType === "EQUITY") {
       movement = creditAmount - debitAmount;
+    } else if (accountType === "INCOME") {
+      movement = creditAmount - debitAmount;
+    } else if (accountType === "EXPENSE") {
+      movement = debitAmount - creditAmount;
     } else {
       continue;
     }
 
-    const existing = statementMap.get(account.id);
+    const targetMap =
+      accountType === "INCOME" || accountType === "EXPENSE"
+        ? profitLossMap
+        : statementMap;
+
+    const existing = targetMap.get(account.id);
 
     const row: StatementRow =
       existing || {
@@ -210,10 +220,14 @@ export default async function FinancialStatementsPage({
 
     row.balance = Number((row.balance + movement).toFixed(2));
 
-    statementMap.set(account.id, row);
+    targetMap.set(account.id, row);
   }
 
   const statementRows = Array.from(statementMap.values()).filter(
+    (row) => row.balance !== 0
+  );
+
+  const profitLossRows = Array.from(profitLossMap.values()).filter(
     (row) => row.balance !== 0
   );
 
@@ -229,6 +243,14 @@ export default async function FinancialStatementsPage({
     statementRows.filter((row) => row.accountType === "EQUITY")
   );
 
+  const incomeRows = sortRows(
+    profitLossRows.filter((row) => row.accountType === "INCOME")
+  );
+
+  const expenseRows = sortRows(
+    profitLossRows.filter((row) => row.accountType === "EXPENSE")
+  );
+
   const totalAssets = assetRows.reduce((sum, row) => sum + row.balance, 0);
   const totalLiabilities = liabilityRows.reduce(
     (sum, row) => sum + row.balance,
@@ -236,17 +258,21 @@ export default async function FinancialStatementsPage({
   );
   const totalEquity = equityRows.reduce((sum, row) => sum + row.balance, 0);
 
+  const totalIncome = incomeRows.reduce((sum, row) => sum + row.balance, 0);
+  const totalExpenses = expenseRows.reduce((sum, row) => sum + row.balance, 0);
+  const profitOrLoss = Number((totalIncome - totalExpenses).toFixed(2));
+
   const totalLiabilitiesAndEquity = totalLiabilities + totalEquity;
   const statementDifference = Number(
     (totalAssets - totalLiabilitiesAndEquity).toFixed(2)
   );
 
   const organisationName =
-  organisation.trading_name || organisation.legal_name || "Organisation";
+    organisation.trading_name || organisation.legal_name || "Organisation";
 
-const baseCurrencyCode = organisation.base_currency_code;
+  const baseCurrencyCode = organisation.base_currency_code;
 
-function renderRows(rows: StatementRow[], emptyMessage: string) {
+  function renderRows(rows: StatementRow[], emptyMessage: string) {
     if (rows.length === 0) {
       return (
         <div className="px-6 py-8 text-sm text-slate-500">{emptyMessage}</div>
@@ -307,11 +333,11 @@ function renderRows(rows: StatementRow[], emptyMessage: string) {
                 </div>
 
                 <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950">
-                  Statement of financial position
+                  Financial statements foundation
                 </h1>
 
                 <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
-                  Review a read-only statement of financial position for{" "}
+                  Review read-only financial statement outputs for{" "}
                   {organisationName}, generated from posted General Ledger lines
                   and chart of accounts financial statement mapping.
                 </p>
@@ -388,6 +414,50 @@ function renderRows(rows: StatementRow[], emptyMessage: string) {
             </div>
             <div className="mt-3 inline-flex rounded-full bg-[#F1F1F1] px-4 py-2 text-sm font-semibold text-[#073D7F]">
               {statementDifference === 0 ? "Balanced" : "Out of Balance"}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-white p-6 shadow-sm">
+            <div className="text-sm font-semibold text-slate-500">
+              Total Income
+            </div>
+            <div className="mt-3 text-2xl font-semibold text-slate-950">
+              {formatMoney(organisation.base_currency_code, totalIncome)}
+            </div>
+          </div>
+
+          <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-white p-6 shadow-sm">
+            <div className="text-sm font-semibold text-slate-500">
+              Total Expenses
+            </div>
+            <div className="mt-3 text-2xl font-semibold text-slate-950">
+              {formatMoney(organisation.base_currency_code, totalExpenses)}
+            </div>
+          </div>
+
+          <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-white p-6 shadow-sm">
+            <div className="text-sm font-semibold text-slate-500">
+              Profit / Surplus
+            </div>
+            <div className="mt-3 text-2xl font-semibold text-slate-950">
+              {formatMoney(
+                organisation.base_currency_code,
+                profitOrLoss > 0 ? profitOrLoss : 0
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-white p-6 shadow-sm">
+            <div className="text-sm font-semibold text-slate-500">
+              Loss / Deficit
+            </div>
+            <div className="mt-3 text-2xl font-semibold text-slate-950">
+              {formatMoney(
+                organisation.base_currency_code,
+                profitOrLoss < 0 ? Math.abs(profitOrLoss) : 0
+              )}
             </div>
           </div>
         </div>
@@ -524,6 +594,118 @@ function renderRows(rows: StatementRow[], emptyMessage: string) {
           )}
         </section>
 
+        <section className="mt-8 rounded-[2rem] border border-[#D9E3F4] bg-white shadow-sm">
+          <div className="border-b border-[#D9E3F4] px-6 py-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-950">
+                  Statement of Profit or Loss / Activities
+                </h2>
+                <p className="mt-2 text-sm leading-7 text-slate-500">
+                  Generated from posted General Ledger income and expense
+                  balances only. Suitable as a foundation for both business
+                  profit or loss reporting and nonprofit activities reporting.
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-[#F8FAFC] px-5 py-4 text-sm">
+                <div className="font-semibold text-slate-950">
+                  Current result
+                </div>
+                <div className="mt-1 text-slate-600">
+                  {profitOrLoss >= 0 ? "Surplus / Profit" : "Deficit / Loss"}:{" "}
+                  <span className="font-semibold text-slate-950">
+                    {formatMoney(
+                      organisation.base_currency_code,
+                      Math.abs(profitOrLoss)
+                    )}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {profitLossRows.length === 0 ? (
+            <div className="px-6 py-16 text-center">
+              <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[#F8FAFC] text-[#073D7F]">
+                <FileSpreadsheet className="h-6 w-6" />
+              </div>
+
+              <h3 className="mt-5 text-lg font-semibold text-slate-950">
+                No profit or loss balances yet
+              </h3>
+
+              <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
+                The statement of profit or loss / activities will appear after
+                income and expense accounts have posted General Ledger balances.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <div className="border-b border-[#D9E3F4]">
+                <div className="bg-[#F8FAFC] px-6 py-4 text-sm font-semibold uppercase tracking-[0.18em] text-[#6491DE]">
+                  Income
+                </div>
+
+                {renderRows(incomeRows, "No income balances posted yet.")}
+
+                <div className="grid gap-4 bg-[#F8FAFC] px-6 py-5 text-sm md:grid-cols-[1fr_0.5fr_0.35fr]">
+                  <div className="font-semibold text-slate-950">
+                    Total Income
+                  </div>
+                  <div />
+                  <div className="text-right font-semibold text-slate-950">
+                    {formatMoney(organisation.base_currency_code, totalIncome)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-b border-[#D9E3F4]">
+                <div className="bg-[#F8FAFC] px-6 py-4 text-sm font-semibold uppercase tracking-[0.18em] text-[#6491DE]">
+                  Expenses
+                </div>
+
+                {renderRows(expenseRows, "No expense balances posted yet.")}
+
+                <div className="grid gap-4 bg-[#F8FAFC] px-6 py-5 text-sm md:grid-cols-[1fr_0.5fr_0.35fr]">
+                  <div className="font-semibold text-slate-950">
+                    Total Expenses
+                  </div>
+                  <div />
+                  <div className="text-right font-semibold text-slate-950">
+                    {formatMoney(
+                      organisation.base_currency_code,
+                      totalExpenses
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-[#D9E3F4] bg-[#073D7F] px-6 py-6 text-white">
+                <div className="grid gap-4 md:grid-cols-[1fr_0.45fr]">
+                  <div>
+                    <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[#6491DE]">
+                      {profitOrLoss >= 0
+                        ? "Surplus / Profit for the period"
+                        : "Deficit / Loss for the period"}
+                    </div>
+                    <div className="mt-2 text-sm text-blue-100">
+                      Calculated from posted income less posted expenses.
+                    </div>
+                  </div>
+
+                  <div className="text-right text-xl font-semibold">
+                    {formatMoney(
+                      organisation.base_currency_code,
+                      Math.abs(profitOrLoss)
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+
         <section className="mt-8 rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
           <div className="flex items-start gap-4">
             <div className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#F1F1F1] text-[#073D7F]">
@@ -540,11 +722,11 @@ function renderRows(rows: StatementRow[], emptyMessage: string) {
               </h2>
 
               <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600">
-                This statement is generated from posted General Ledger lines
-                only. It is not yet a final unaudited financial statement pack.
-                Future versions will include statement of profit or loss,
-                statement of cash flows, statement of changes in equity, notes,
-                review controls, export, and reporting period filters.
+                These statements are generated from posted General Ledger lines
+                only. This is not yet a final unaudited financial statement
+                pack. Future versions will include statement of cash flows,
+                statement of changes in equity, notes, review controls, export,
+                and reporting period filters.
               </p>
 
               <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#F1F1F1] px-4 py-2 text-sm font-semibold text-[#073D7F]">
