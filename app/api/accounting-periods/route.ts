@@ -21,6 +21,8 @@ const allowedPeriodTypes = [
   "YEARLY",
   "INTERIM_FS",
   "CUSTOM",
+  "PERIOD_LOCK",
+  "PERIOD_CLOSE",
 ];
 
 function getMissingColumnName(errorMessage: string) {
@@ -105,10 +107,19 @@ export async function POST(request: Request) {
       ? String(body.engagement_id).trim()
       : null;
 
-    const name = String(body.name || "").trim();
-    const periodType = String(body.period_type || "MONTHLY").trim();
+    const periodName = String(
+      body.period_name || body.name || "Date range period"
+    ).trim();
+
+    const periodType = String(body.period_type || "CUSTOM").trim();
     const startDate = String(body.start_date || "").trim();
     const endDate = String(body.end_date || "").trim();
+
+    const status = String(body.status || "OPEN").trim().toUpperCase();
+
+    const lockReason = body.lock_reason
+      ? String(body.lock_reason).trim()
+      : null;
 
     const reportingFramework = body.reporting_framework
       ? String(body.reporting_framework).trim()
@@ -125,9 +136,9 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!name) {
+    if (!periodName) {
       return Response.json(
-        { error: "Period name is required." },
+        { error: "Period label is required." },
         { status: 400 }
       );
     }
@@ -135,6 +146,13 @@ export async function POST(request: Request) {
     if (!allowedPeriodTypes.includes(periodType)) {
       return Response.json(
         { error: "Invalid period type." },
+        { status: 400 }
+      );
+    }
+
+    if (!["OPEN", "UNDER_REVIEW", "LOCKED", "CLOSED"].includes(status)) {
+      return Response.json(
+        { error: "Invalid period status." },
         { status: 400 }
       );
     }
@@ -155,7 +173,9 @@ export async function POST(request: Request) {
 
     const { data: organisation, error: organisationError } = await supabase
       .from("organisations")
-      .select("id, legal_name, trading_name, reporting_framework_code, base_currency_code")
+      .select(
+        "id, legal_name, trading_name, reporting_framework_code, base_currency_code"
+      )
       .eq("id", organisationId)
       .single();
 
@@ -191,19 +211,35 @@ export async function POST(request: Request) {
     const finalCurrencyCode =
       currencyCode || organisation.base_currency_code || null;
 
+    const now = new Date().toISOString();
+
     const periodResult = await insertWithSchemaRetry({
       supabase,
       table: "accounting_periods",
       payload: {
         organisation_id: organisationId,
         engagement_id: engagementId,
-        name,
+
+        // Old and new naming supported.
+        name: periodName,
+        period_name: periodName,
+
         period_type: periodType,
         start_date: startDate,
         end_date: endDate,
+
         reporting_framework: finalReportingFramework,
         currency_code: finalCurrencyCode,
-        status: "OPEN",
+
+        status,
+        lock_reason: lockReason,
+
+        locked_at: status === "LOCKED" ? now : null,
+        locked_by: status === "LOCKED" ? user.id : null,
+
+        closed_at: status === "CLOSED" ? now : null,
+        closed_by: status === "CLOSED" ? user.id : null,
+
         created_by: user.id,
       },
       selectColumns: "id",
@@ -219,10 +255,12 @@ export async function POST(request: Request) {
         action: "ACCOUNTING_PERIOD_CREATED",
         details: {
           accounting_period_id: accountingPeriod.id,
-          name,
+          period_name: periodName,
           period_type: periodType,
           start_date: startDate,
           end_date: endDate,
+          status,
+          lock_reason: lockReason,
           reporting_framework: finalReportingFramework,
           currency_code: finalCurrencyCode,
           removed_period_columns: periodResult.removedColumns,

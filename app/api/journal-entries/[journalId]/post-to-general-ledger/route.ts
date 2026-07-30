@@ -29,6 +29,14 @@ type JournalLine = {
   investor_id: string | null;
 };
 
+type LockedAccountingPeriod = {
+  id: string;
+  period_name: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  status: string | null;
+};
+
 function toMoney(value: unknown) {
   return Number(Number(value || 0).toFixed(2));
 }
@@ -97,6 +105,51 @@ export async function POST(
       return NextResponse.json(
         { error: "A void journal cannot be posted." },
         { status: 400 }
+      );
+    }
+
+    const entryDate = journal.journal_date;
+
+    if (!entryDate) {
+      return NextResponse.json(
+        { error: "Journal date is required before posting." },
+        { status: 400 }
+      );
+    }
+
+    const { data: lockedPeriodRows, error: lockedPeriodError } = await supabase
+      .from("accounting_periods")
+      .select("id, period_name, start_date, end_date, status")
+      .eq("organisation_id", journal.organisation_id)
+      .lte("start_date", entryDate)
+      .gte("end_date", entryDate)
+      .in("status", ["LOCKED", "CLOSED"])
+      .limit(1);
+
+    if (lockedPeriodError) {
+      return NextResponse.json(
+        {
+          error: "Unable to validate accounting period lock status.",
+          details: lockedPeriodError.message,
+        },
+        { status: 500 }
+      );
+    }
+
+    const lockedPeriod = (lockedPeriodRows ||
+      [])[0] as LockedAccountingPeriod | undefined;
+
+    if (lockedPeriod) {
+      return NextResponse.json(
+        {
+          error:
+            "This accounting period is locked or closed. Posting is not allowed.",
+          periodId: lockedPeriod.id,
+          periodName: lockedPeriod.period_name,
+          periodStatus: lockedPeriod.status,
+          entryDate,
+        },
+        { status: 409 }
       );
     }
 
@@ -247,7 +300,6 @@ export async function POST(
     });
 
     const exchangeRate = Number(journal.exchange_rate || 1);
-    const entryDate = journal.journal_date;
     const currencyCode = journal.currency_code;
     const sourceReference =
       journal.journal_number || journal.reference_number || journal.id;

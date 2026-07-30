@@ -25,11 +25,25 @@ const internalRoles = [
 
 type AccountingPeriod = {
   id: string;
+  name: string | null;
   period_name: string | null;
+  period_type: string | null;
   start_date: string | null;
   end_date: string | null;
   status: string | null;
+  lock_reason: string | null;
   created_at: string | null;
+};
+
+type Organisation = {
+  id: string;
+  legal_name: string | null;
+  trading_name: string | null;
+  base_currency_code: string | null;
+  accounting_year_start_month: number | null;
+  accounting_year_start_day: number | null;
+  accounting_year_end_month: number | null;
+  accounting_year_end_day: number | null;
 };
 
 function formatDate(value: string | null) {
@@ -50,6 +64,35 @@ function formatStatus(status: string | null) {
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
+}
+
+function formatPeriodType(value: string | null) {
+  if (!value) return "Custom";
+
+  return value
+    .toLowerCase()
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function formatAccountingYear(organisation: Organisation) {
+  const startMonth = organisation.accounting_year_start_month;
+  const startDay = organisation.accounting_year_start_day;
+  const endMonth = organisation.accounting_year_end_month;
+  const endDay = organisation.accounting_year_end_day;
+
+  if (!startMonth || !startDay || !endMonth || !endDay) {
+    return "Not configured";
+  }
+
+  return `${String(startDay).padStart(2, "0")}/${String(startMonth).padStart(
+    2,
+    "0"
+  )} to ${String(endDay).padStart(2, "0")}/${String(endMonth).padStart(
+    2,
+    "0"
+  )}`;
 }
 
 function statusClassName(status: string | null) {
@@ -97,19 +140,25 @@ export default async function AccountingPeriodsPage({
     redirect("/portal");
   }
 
-  const { data: organisation } = await supabase
+  const { data: organisationRow } = await supabase
     .from("organisations")
-    .select("id, legal_name, trading_name, base_currency_code")
+    .select(
+      "id, legal_name, trading_name, base_currency_code, accounting_year_start_month, accounting_year_start_day, accounting_year_end_month, accounting_year_end_day"
+    )
     .eq("id", id)
     .single();
 
-  if (!organisation) {
+  if (!organisationRow) {
     redirect("/portal/organisations");
   }
 
+  const organisation = organisationRow as Organisation;
+
   const { data: periodRows } = await supabase
     .from("accounting_periods")
-    .select("id, period_name, start_date, end_date, status, created_at")
+    .select(
+      "id, name, period_name, period_type, start_date, end_date, status, lock_reason, created_at"
+    )
     .eq("organisation_id", id)
     .order("start_date", { ascending: false });
 
@@ -154,23 +203,24 @@ export default async function AccountingPeriodsPage({
 
               <div>
                 <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
-                  Accounting Periods
+                  Period Control
                 </div>
 
                 <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950">
-                  Period lock foundation
+                  Date-range lock and close foundation
                 </h1>
 
                 <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
-                  Manage accounting periods for {organisationName}. This page is
-                  the foundation for month-end close, reporting period control,
-                  period locking, and future financial statement compliance.
+                  Manage reporting periods, lock ranges, and close ranges for{" "}
+                  {organisationName}. A locked or closed date range protects the
+                  General Ledger from postings within that period.
                 </p>
 
                 <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-500">
-                  Status changes are currently tracking controls only. Posting
-                  restrictions for locked and closed periods will be enforced in
-                  the next phase.
+                  During onboarding, each organisation should define its
+                  accounting year start and end month/day. Period locks and
+                  closes can still be created for any custom date range,
+                  including grant periods and project periods.
                 </p>
               </div>
             </div>
@@ -180,17 +230,29 @@ export default async function AccountingPeriodsPage({
               className="inline-flex items-center justify-center gap-2 rounded-full bg-[#073D7F] px-6 py-3 text-sm font-semibold text-white shadow-sm"
             >
               <Plus className="h-4 w-4" />
-              Create Period
+              Create Lock / Period
             </a>
           </div>
         </div>
       </section>
 
       <section className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
+          <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-white p-6 shadow-sm xl:col-span-1">
+            <div className="text-sm font-semibold text-slate-500">
+              Accounting Year
+            </div>
+            <div className="mt-3 text-xl font-semibold text-slate-950">
+              {formatAccountingYear(organisation)}
+            </div>
+            <p className="mt-2 text-sm text-slate-500">
+              Onboarding default for annual reporting.
+            </p>
+          </div>
+
           <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-white p-6 shadow-sm">
             <div className="text-sm font-semibold text-slate-500">
-              Open Periods
+              Open Ranges
             </div>
             <div className="mt-3 text-3xl font-semibold text-slate-950">
               {openCount}
@@ -208,7 +270,7 @@ export default async function AccountingPeriodsPage({
 
           <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-white p-6 shadow-sm">
             <div className="text-sm font-semibold text-slate-500">
-              Locked Periods
+              Locked Ranges
             </div>
             <div className="mt-3 text-3xl font-semibold text-slate-950">
               {lockedCount}
@@ -217,7 +279,7 @@ export default async function AccountingPeriodsPage({
 
           <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-white p-6 shadow-sm">
             <div className="text-sm font-semibold text-slate-500">
-              Closed Periods
+              Closed Ranges
             </div>
             <div className="mt-3 text-3xl font-semibold text-slate-950">
               {closedCount}
@@ -229,17 +291,17 @@ export default async function AccountingPeriodsPage({
           <div className="flex flex-col gap-4 border-b border-[#D9E3F4] px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-slate-950">
-                Accounting periods
+                Date-range period controls
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                Period statuses support close tracking and future posting
-                restrictions.
+                Lock or close any date range. The posting engine checks journal
+                dates against locked and closed ranges.
               </p>
             </div>
 
             <div className="inline-flex items-center gap-2 rounded-full bg-[#F1F1F1] px-4 py-2 text-sm font-semibold text-[#073D7F]">
               <Lock className="h-4 w-4" />
-              Lock enforcement comes next
+              Date-range control
             </div>
           </div>
 
@@ -250,12 +312,12 @@ export default async function AccountingPeriodsPage({
               </div>
 
               <h3 className="mt-5 text-lg font-semibold text-slate-950">
-                No accounting periods yet
+                No period controls yet
               </h3>
 
               <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
-                Create accounting periods for months, quarters, year ends, grant
-                periods, or project reporting cycles.
+                Create a date range for monthly reporting, year-end close, grant
+                reporting, project reporting, or a period lock.
               </p>
 
               <div className="mt-6">
@@ -264,7 +326,7 @@ export default async function AccountingPeriodsPage({
                   className="inline-flex items-center justify-center gap-2 rounded-full bg-[#073D7F] px-6 py-3 text-sm font-semibold text-white"
                 >
                   <Plus className="h-4 w-4" />
-                  Create Period
+                  Create Lock / Period
                 </a>
               </div>
             </div>
@@ -274,7 +336,10 @@ export default async function AccountingPeriodsPage({
                 <thead className="bg-[#F8FAFC]">
                   <tr>
                     <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      Period
+                      Label
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Type
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                       Date Range
@@ -283,7 +348,7 @@ export default async function AccountingPeriodsPage({
                       Status
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      Created
+                      Reason
                     </th>
                     <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                       Controls
@@ -296,8 +361,17 @@ export default async function AccountingPeriodsPage({
                     <tr key={period.id} className="hover:bg-[#F8FAFC]">
                       <td className="whitespace-nowrap px-6 py-5">
                         <div className="font-semibold text-slate-950">
-                          {period.period_name || "Unnamed period"}
+                          {period.period_name ||
+                            period.name ||
+                            "Date range period"}
                         </div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          Created {formatDate(period.created_at)}
+                        </div>
+                      </td>
+
+                      <td className="whitespace-nowrap px-6 py-5 text-sm text-slate-600">
+                        {formatPeriodType(period.period_type)}
                       </td>
 
                       <td className="whitespace-nowrap px-6 py-5 text-sm text-slate-600">
@@ -315,8 +389,8 @@ export default async function AccountingPeriodsPage({
                         </span>
                       </td>
 
-                      <td className="whitespace-nowrap px-6 py-5 text-sm text-slate-600">
-                        {formatDate(period.created_at)}
+                      <td className="max-w-sm px-6 py-5 text-sm text-slate-600">
+                        {period.lock_reason || "—"}
                       </td>
 
                       <td className="whitespace-nowrap px-6 py-5 text-right">
@@ -347,20 +421,21 @@ export default async function AccountingPeriodsPage({
               </div>
 
               <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
-                Foundation-stage period close control
+                Foundation-stage date-range lock control
               </h2>
 
               <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600">
-                This module tracks accounting period status for close management.
-                It does not yet enforce posting restrictions. In the next phase,
-                locked and closed periods will prevent new postings, require
-                adjustment approval workflows, and maintain an audit trail for
-                reopening or changing closed periods.
+                This module tracks date-range reporting periods, locks, and
+                closes. Journal posting protection checks whether the journal
+                date falls inside any locked or closed range. Later phases will
+                add accounting year onboarding, automated year-end period
+                generation, adjustment approval workflows, reopening controls,
+                and full audit trail enforcement.
               </p>
 
               <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#F1F1F1] px-4 py-2 text-sm font-semibold text-[#073D7F]">
                 <CheckCircle className="h-4 w-4" />
-                Ready for future lock enforcement
+                Ready for onboarding accounting year setup
               </div>
             </div>
           </div>
