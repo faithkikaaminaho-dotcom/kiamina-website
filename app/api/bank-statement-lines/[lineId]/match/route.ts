@@ -75,19 +75,70 @@ async function getInternalUser() {
   };
 }
 
-function getSourceTable(sourceModule: string) {
-  const tables: Record<string, string> = {
-    CUSTOMER_RECEIPT: "customer_receipts",
-    SUPPLIER_PAYMENT: "supplier_payments",
-    FUNDING_TRANSACTION: "funding_transactions",
-    CAPITAL_CALL: "capital_calls",
-    JOURNAL_ENTRY: "journal_entries",
-    SALES_INVOICE: "sales_invoices",
-    PURCHASE_BILL: "purchase_bills",
-    GENERAL_LEDGER_ENTRY: "general_ledger_entries",
+function getSourceConfig(sourceModule: string) {
+  const configs: Record<
+    string,
+    {
+      table: string;
+      select: string;
+      amountFields: string[];
+    }
+  > = {
+    CUSTOMER_RECEIPT: {
+      table: "customer_receipts",
+      select: "id, organisation_id, amount_received, net_amount",
+      amountFields: ["net_amount", "amount_received"],
+    },
+    SUPPLIER_PAYMENT: {
+      table: "supplier_payments",
+      select: "id, organisation_id, amount_paid, total_cash_outflow",
+      amountFields: ["total_cash_outflow", "amount_paid"],
+    },
+    FUNDING_TRANSACTION: {
+      table: "funding_transactions",
+      select: "id, organisation_id, amount, net_amount",
+      amountFields: ["net_amount", "amount"],
+    },
+    CAPITAL_CALL: {
+      table: "capital_calls",
+      select: "id, organisation_id, called_amount",
+      amountFields: ["called_amount"],
+    },
+    JOURNAL_ENTRY: {
+      table: "journal_entries",
+      select: "id, organisation_id, total_debits, total_credits",
+      amountFields: ["total_debits", "total_credits"],
+    },
+    SALES_INVOICE: {
+      table: "sales_invoices",
+      select: "id, organisation_id, total_amount, balance_due",
+      amountFields: ["balance_due", "total_amount"],
+    },
+    PURCHASE_BILL: {
+      table: "purchase_bills",
+      select: "id, organisation_id, total_amount, balance_due",
+      amountFields: ["balance_due", "total_amount"],
+    },
+    GENERAL_LEDGER_ENTRY: {
+      table: "general_ledger_entries",
+      select: "id, organisation_id, total_debits, total_credits",
+      amountFields: ["total_debits", "total_credits"],
+    },
   };
 
-  return tables[sourceModule];
+  return configs[sourceModule];
+}
+
+function getSourceAmount(sourceRecord: Record<string, unknown>, amountFields: string[]) {
+  for (const field of amountFields) {
+    const amount = toNumber(sourceRecord[field], 0);
+
+    if (amount > 0) {
+      return roundMoney(amount);
+    }
+  }
+
+  return 0;
 }
 
 export async function POST(
@@ -107,8 +158,18 @@ export async function POST(
 
     const sourceModule = String(body.source_module || "").trim().toUpperCase();
     const sourceRecordId = String(body.source_record_id || "").trim();
-    const matchNote = body.match_note ? String(body.match_note).trim() : null;
-    const matchedAmount = roundMoney(toNumber(body.matched_amount, 0));
+    const allocationDescription = body.match_note
+      ? String(body.match_note).trim()
+      : "Matched from bank feed.";
+    const allocationAmount = roundMoney(toNumber(body.matched_amount, 0));
+
+    const bankChargeTreatment = body.bank_charge_treatment
+      ? String(body.bank_charge_treatment).trim().toUpperCase()
+      : "NONE";
+    const bankChargeAmount = roundMoney(toNumber(body.bank_charge_amount, 0));
+    const bankChargeGlAccountId = body.bank_charge_gl_account_id
+      ? String(body.bank_charge_gl_account_id).trim()
+      : null;
 
     if (!lineId) {
       return NextResponse.json(
@@ -131,9 +192,19 @@ export async function POST(
       );
     }
 
-    if (matchedAmount <= 0) {
+    if (allocationAmount <= 0) {
       return NextResponse.json(
         { error: "Matched amount must be greater than zero." },
+        { status: 400 }
+      );
+    }
+
+    if (bankChargeAmount > 0 && !bankChargeGlAccountId) {
+      return NextResponse.json(
+        {
+          error:
+            "Bank charge GL account is required when a bank charge amount is entered.",
+        },
         { status: 400 }
       );
     }
@@ -141,7 +212,7 @@ export async function POST(
     const { data: bankLine } = await supabase
       .from("bank_statement_lines")
       .select(
-        "id, organisation_id, bank_account_id, money_in, money_out, reconciliation_status"
+        "id, organisation_id, bank_account_id, money_in, money_out, allocated_amount, unallocated_amount, reconciliation_status"
       )
       .eq("id", lineId)
       .single();
@@ -153,16 +224,11 @@ export async function POST(
       );
     }
 
-    if (
-      bankLine.reconciliation_status &&
-      ["MATCHED", "RECONCILED", "ADDED_TO_BOOKS"].includes(
-        bankLine.reconciliation_status
-      )
-    ) {
+    if (["EXCLUDED", "IGNORED"].includes(bankLine.reconciliation_status || "")) {
       return NextResponse.json(
         {
           error:
-            "This bank statement line has already been matched, reconciled, or added to the books.",
+            "This bank statement line has been excluded and cannot be matched.",
         },
         { status: 409 }
       );
@@ -170,22 +236,34 @@ export async function POST(
 
     const bankLineAmount =
       Number(bankLine.money_in || 0) > 0
-        ? Number(bankLine.money_in || 0)
-        : Number(bankLine.money_out || 0);
+        ? roundMoney(Number(bankLine.money_in || 0))
+        : roundMoney(Number(bankLine.money_out || 0));
 
-    if (matchedAmount > roundMoney(bankLineAmount)) {
+    const alreadyAllocated = roundMoney(toNumber(bankLine.allocated_amount, 0));
+    const currentUnallocated =
+      bankLine.unallocated_amount === null ||
+      bankLine.unallocated_amount === undefined
+        ? roundMoney(bankLineAmount - alreadyAllocated)
+        : roundMoney(toNumber(bankLine.unallocated_amount, bankLineAmount));
+
+    if (allocationAmount > currentUnallocated) {
       return NextResponse.json(
         {
-          error:
-            "Matched amount cannot be greater than the bank statement line amount.",
+          error: `Matched amount cannot exceed the unallocated bank line amount of ${currentUnallocated.toLocaleString(
+            "en-US",
+            {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            }
+          )}.`,
         },
         { status: 400 }
       );
     }
 
-    const sourceTable = getSourceTable(sourceModule);
+    const sourceConfig = getSourceConfig(sourceModule);
 
-    if (!sourceTable) {
+    if (!sourceConfig) {
       return NextResponse.json(
         { error: "Unable to determine source transaction table." },
         { status: 400 }
@@ -193,8 +271,8 @@ export async function POST(
     }
 
     const { data: sourceRecord } = await supabase
-      .from(sourceTable)
-      .select("id, organisation_id")
+      .from(sourceConfig.table)
+      .select(sourceConfig.select)
       .eq("id", sourceRecordId)
       .eq("organisation_id", bankLine.organisation_id)
       .single();
@@ -209,66 +287,142 @@ export async function POST(
       );
     }
 
-    const { data: existingMatch } = await supabase
-      .from("bank_statement_matches")
-      .select("id")
-      .eq("bank_statement_line_id", lineId)
+    const sourceAmount = getSourceAmount(
+  sourceRecord as unknown as Record<string, unknown>,
+  sourceConfig.amountFields
+);
+
+    const { data: sourceStatus } = await supabase
+      .from("source_transaction_reconciliation_status")
+      .select(
+        "id, source_amount, allocated_bank_amount, unallocated_source_amount, reconciliation_status"
+      )
+      .eq("organisation_id", bankLine.organisation_id)
+      .eq("source_module", sourceModule)
+      .eq("source_record_id", sourceRecordId)
       .maybeSingle();
 
-    if (existingMatch) {
+    const sourceAlreadyAllocated = roundMoney(
+      toNumber(sourceStatus?.allocated_bank_amount, 0)
+    );
+
+    const sourceUnallocated =
+      sourceStatus?.unallocated_source_amount === null ||
+      sourceStatus?.unallocated_source_amount === undefined
+        ? roundMoney(sourceAmount - sourceAlreadyAllocated)
+        : roundMoney(toNumber(sourceStatus.unallocated_source_amount, sourceAmount));
+
+    if (sourceAmount > 0 && allocationAmount > sourceUnallocated) {
       return NextResponse.json(
         {
-          error:
-            "This bank statement line already has a match record. Refresh the page and review the reconciliation status.",
+          error: `Matched amount cannot exceed the unallocated source transaction amount of ${sourceUnallocated.toLocaleString(
+            "en-US",
+            {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            }
+          )}.`,
         },
-        { status: 409 }
+        { status: 400 }
       );
     }
 
-    const { error: matchError } = await supabase
-      .from("bank_statement_matches")
+    const { data: allocation, error: allocationError } = await supabase
+      .from("bank_reconciliation_allocations")
       .insert({
         organisation_id: bankLine.organisation_id,
+        bank_account_id: bankLine.bank_account_id,
         bank_statement_line_id: lineId,
+
+        allocation_type: "MATCH_EXISTING",
         source_module: sourceModule,
         source_record_id: sourceRecordId,
-        matched_amount: matchedAmount,
-        match_status: "MATCHED",
-        match_note: matchNote,
-        matched_by: user?.id,
-      });
 
-    if (matchError) {
+        allocation_description: allocationDescription,
+        allocation_amount: allocationAmount,
+
+        bank_charge_treatment: bankChargeTreatment,
+        bank_charge_amount: bankChargeAmount,
+        bank_charge_gl_account_id: bankChargeGlAccountId,
+
+        status: "ALLOCATED",
+
+        created_by: user?.id,
+        updated_by: user?.id,
+      })
+      .select("id")
+      .single();
+
+    if (allocationError || !allocation) {
       return NextResponse.json(
         {
-          error: "Unable to create bank statement match.",
-          details: matchError.message,
+          error: "Unable to create reconciliation allocation.",
+          details: allocationError?.message,
         },
         { status: 500 }
       );
     }
 
-    const { error: updateError } = await supabase
-      .from("bank_statement_lines")
-      .update({
-        reconciliation_status: "MATCHED",
-        matched_source_module: sourceModule,
-        matched_source_record_id: sourceRecordId,
-        matched_amount: matchedAmount,
-        updated_by: user?.id,
-      })
-      .eq("id", lineId);
+    const newSourceAllocated = roundMoney(sourceAlreadyAllocated + allocationAmount);
+    const newSourceUnallocated = roundMoney(Math.max(sourceAmount - newSourceAllocated, 0));
 
-    if (updateError) {
-      await supabase
-        .from("bank_statement_matches")
-        .delete()
-        .eq("bank_statement_line_id", lineId);
+    let newSourceStatus = "UNRECONCILED";
 
+    if (newSourceAllocated <= 0) {
+      newSourceStatus = "UNRECONCILED";
+    } else if (sourceAmount > 0 && newSourceAllocated < sourceAmount) {
+      newSourceStatus = "PARTIALLY_RECONCILED";
+    } else if (sourceAmount > 0 && newSourceAllocated === sourceAmount) {
+      newSourceStatus = "RECONCILED";
+    } else if (sourceAmount > 0 && newSourceAllocated > sourceAmount) {
+      newSourceStatus = "OVER_RECONCILED";
+    } else {
+      newSourceStatus = "RECONCILED";
+    }
+
+    const { error: sourceStatusError } = await supabase
+      .from("source_transaction_reconciliation_status")
+      .upsert(
+        {
+          organisation_id: bankLine.organisation_id,
+          source_module: sourceModule,
+          source_record_id: sourceRecordId,
+          source_amount: sourceAmount,
+          allocated_bank_amount: newSourceAllocated,
+          unallocated_source_amount: newSourceUnallocated,
+          reconciliation_status: newSourceStatus,
+          last_bank_statement_line_id: lineId,
+          last_allocation_id: allocation.id,
+        },
+        {
+          onConflict: "organisation_id,source_module,source_record_id",
+        }
+      );
+
+    if (sourceStatusError) {
       return NextResponse.json(
         {
-          error: "Unable to update bank statement line.",
-          details: updateError.message,
+          error:
+            "Allocation was created, but source transaction reconciliation summary could not be updated.",
+          details: sourceStatusError.message,
+        },
+        { status: 500 }
+      );
+    }
+
+    const { error: recalcError } = await supabase.rpc(
+      "recalculate_bank_statement_line_reconciliation",
+      {
+        p_bank_statement_line_id: lineId,
+      }
+    );
+
+    if (recalcError) {
+      return NextResponse.json(
+        {
+          error:
+            "Allocation was created, but bank line reconciliation status could not be recalculated.",
+          details: recalcError.message,
         },
         { status: 500 }
       );
@@ -278,13 +432,17 @@ export async function POST(
       await supabase.from("audit_logs").insert({
         user_id: user?.id,
         organisation_id: bankLine.organisation_id,
-        action: "BANK_STATEMENT_LINE_MATCHED",
+        action: "BANK_STATEMENT_LINE_ALLOCATED_TO_SOURCE_TRANSACTION",
         details: {
           bank_statement_line_id: lineId,
           bank_account_id: bankLine.bank_account_id,
+          allocation_id: allocation.id,
           source_module: sourceModule,
           source_record_id: sourceRecordId,
-          matched_amount: matchedAmount,
+          allocation_amount: allocationAmount,
+          bank_charge_treatment: bankChargeTreatment,
+          bank_charge_amount: bankChargeAmount,
+          bank_charge_gl_account_id: bankChargeGlAccountId,
         },
       });
     } catch {
@@ -294,9 +452,10 @@ export async function POST(
     return NextResponse.json({
       success: true,
       lineId,
+      allocationId: allocation.id,
       sourceModule,
       sourceRecordId,
-      matchedAmount,
+      allocationAmount,
     });
   } catch (error) {
     return NextResponse.json(

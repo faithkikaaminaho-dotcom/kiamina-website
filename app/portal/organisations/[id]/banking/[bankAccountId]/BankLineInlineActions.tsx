@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import AddBankLineToBooksForm from "./AddBankLineToBooksForm";
 
 type SourceCandidate = {
   source_module: string;
@@ -14,12 +15,26 @@ type SourceCandidate = {
   status: string | null;
 };
 
+type PartyOption = {
+  id: string;
+  name: string;
+};
+
+type AccountOption = {
+  id: string;
+  label: string;
+  account_type: string | null;
+};
+
 type BankLine = {
   id: string;
+  description: string | null;
   money_in: number | null;
   money_out: number | null;
   currency_code: string | null;
   reconciliation_status: string | null;
+  allocated_amount?: number | null;
+  unallocated_amount?: number | null;
 };
 
 function formatStatus(status?: string | null) {
@@ -38,6 +53,10 @@ function toNumber(value: unknown) {
   return Number.isFinite(numericValue) ? numericValue : 0;
 }
 
+function roundMoney(value: number) {
+  return Number(value.toFixed(2));
+}
+
 function formatMoney(currencyCode?: string | null, amount?: number | null) {
   return `${currencyCode || "—"} ${Number(amount || 0).toLocaleString(
     "en-US",
@@ -53,21 +72,42 @@ export default function BankLineInlineActions({
   bankAccountId,
   line,
   candidates,
+  customers,
+  suppliers,
+  investors,
+  incomeAccounts,
+  expenseAccounts,
 }: {
   organisationId: string;
   bankAccountId: string;
   line: BankLine;
   candidates: SourceCandidate[];
+  customers: PartyOption[];
+  suppliers: PartyOption[];
+  investors: PartyOption[];
+  incomeAccounts: AccountOption[];
+  expenseAccounts: AccountOption[];
 }) {
   const router = useRouter();
 
-  const bankLineAmount =
-    toNumber(line.money_in) > 0 ? toNumber(line.money_in) : toNumber(line.money_out);
+  const moneyIn = toNumber(line.money_in);
+  const moneyOut = toNumber(line.money_out);
 
-  const isMoneyIn = toNumber(line.money_in) > 0;
+  const bankLineAmount = moneyIn > 0 ? moneyIn : moneyOut;
+  const isMoneyIn = moneyIn > 0;
+
+  const allocatedAmount = roundMoney(toNumber(line.allocated_amount));
+
+  const calculatedUnallocatedAmount = roundMoney(
+    Math.max(bankLineAmount - allocatedAmount, 0)
+  );
+
+  const unallocatedAmount =
+    line.unallocated_amount === null || line.unallocated_amount === undefined
+      ? calculatedUnallocatedAmount
+      : roundMoney(toNumber(line.unallocated_amount));
 
   const isLocked = [
-    "MATCHED",
     "RECONCILED",
     "ADDED_TO_BOOKS",
     "IGNORED",
@@ -77,8 +117,11 @@ export default function BankLineInlineActions({
   const likelyCandidates = useMemo(() => {
     return candidates
       .filter((candidate) => {
+        const candidateAmount = toNumber(candidate.amount);
+
         const sameAmount =
-          Math.abs(toNumber(candidate.amount) - toNumber(bankLineAmount)) < 0.01;
+          Math.abs(candidateAmount - unallocatedAmount) < 0.01 ||
+          Math.abs(candidateAmount - bankLineAmount) < 0.01;
 
         if (isMoneyIn) {
           return (
@@ -104,17 +147,22 @@ export default function BankLineInlineActions({
       })
       .sort((a, b) => {
         const aAmountMatch =
-          Math.abs(toNumber(a.amount) - toNumber(bankLineAmount)) < 0.01 ? 0 : 1;
+          Math.abs(toNumber(a.amount) - unallocatedAmount) < 0.01 ? 0 : 1;
+
         const bAmountMatch =
-          Math.abs(toNumber(b.amount) - toNumber(bankLineAmount)) < 0.01 ? 0 : 1;
+          Math.abs(toNumber(b.amount) - unallocatedAmount) < 0.01 ? 0 : 1;
 
         return aAmountMatch - bAmountMatch;
       });
-  }, [bankLineAmount, candidates, isMoneyIn]);
+  }, [bankLineAmount, candidates, isMoneyIn, unallocatedAmount]);
 
   const [selectedKey, setSelectedKey] = useState("");
+  const [matchedAmount, setMatchedAmount] = useState(
+    unallocatedAmount > 0 ? String(unallocatedAmount) : String(bankLineAmount)
+  );
   const [submitting, setSubmitting] = useState(false);
   const [excluding, setExcluding] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   const selectedCandidate = likelyCandidates.find((candidate) => {
@@ -131,6 +179,21 @@ export default function BankLineInlineActions({
         throw new Error("Select a transaction to match.");
       }
 
+      const amount = roundMoney(toNumber(matchedAmount));
+
+      if (amount <= 0) {
+        throw new Error("Enter an amount greater than zero.");
+      }
+
+      if (amount > unallocatedAmount) {
+        throw new Error(
+          `Amount cannot exceed the unallocated bank line amount of ${formatMoney(
+            line.currency_code,
+            unallocatedAmount
+          )}.`
+        );
+      }
+
       const response = await fetch(
         `/api/bank-statement-lines/${line.id}/match`,
         {
@@ -141,8 +204,11 @@ export default function BankLineInlineActions({
           body: JSON.stringify({
             source_module: selectedCandidate.source_module,
             source_record_id: selectedCandidate.source_record_id,
-            matched_amount: bankLineAmount,
+            matched_amount: amount,
             match_note: "Matched inline from banking feed.",
+            bank_charge_treatment: "NONE",
+            bank_charge_amount: 0,
+            bank_charge_gl_account_id: null,
           }),
         }
       );
@@ -153,6 +219,8 @@ export default function BankLineInlineActions({
         throw new Error(result.error || "Unable to match bank line.");
       }
 
+      setSelectedKey("");
+      setMatchedAmount("0");
       router.refresh();
     } catch (error) {
       setErrorMessage(
@@ -217,12 +285,41 @@ export default function BankLineInlineActions({
   }
 
   return (
-    <div className="min-w-[340px] space-y-3 text-right">
+    <div className="min-w-[420px] space-y-3 text-right">
       {errorMessage ? (
         <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-left text-xs leading-5 text-red-700">
           {errorMessage}
         </div>
       ) : null}
+
+      <div className="grid gap-2 rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] p-3 text-left text-xs text-slate-600 sm:grid-cols-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400">
+            Bank line
+          </div>
+          <div className="mt-1 font-semibold text-slate-950">
+            {formatMoney(line.currency_code, bankLineAmount)}
+          </div>
+        </div>
+
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400">
+            Allocated
+          </div>
+          <div className="mt-1 font-semibold text-slate-950">
+            {formatMoney(line.currency_code, allocatedAmount)}
+          </div>
+        </div>
+
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400">
+            Remaining
+          </div>
+          <div className="mt-1 font-semibold text-slate-950">
+            {formatMoney(line.currency_code, unallocatedAmount)}
+          </div>
+        </div>
+      </div>
 
       <select
         value={selectedKey}
@@ -243,14 +340,34 @@ export default function BankLineInlineActions({
         })}
       </select>
 
-      <div className="flex justify-end gap-2">
+      <input
+        type="number"
+        step="0.01"
+        min="0"
+        max={unallocatedAmount}
+        value={matchedAmount}
+        onChange={(event) => setMatchedAmount(event.target.value)}
+        className="w-full rounded-2xl border border-[#D9E3F4] px-3 py-2 text-xs outline-none focus:border-[#073D7F]"
+        placeholder="Amount to match"
+      />
+
+      <div className="flex flex-wrap justify-end gap-2">
         <button
           type="button"
           onClick={handleMatch}
-          disabled={submitting || !selectedCandidate}
+          disabled={submitting || !selectedCandidate || unallocatedAmount <= 0}
           className="rounded-full bg-[#073D7F] px-4 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting ? "Matching..." : "Match"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setShowAddForm((current) => !current)}
+          disabled={unallocatedAmount <= 0}
+          className="rounded-full border border-[#D9E3F4] bg-white px-4 py-2 text-xs font-semibold text-[#073D7F] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {showAddForm ? "Close Add" : "Add"}
         </button>
 
         <a
@@ -263,12 +380,23 @@ export default function BankLineInlineActions({
         <button
           type="button"
           onClick={handleExclude}
-          disabled={excluding}
+          disabled={excluding || allocatedAmount > 0}
           className="rounded-full border border-[#D9E3F4] bg-white px-4 py-2 text-xs font-semibold text-slate-600 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {excluding ? "Excluding..." : "Exclude"}
         </button>
       </div>
+
+      {showAddForm ? (
+        <AddBankLineToBooksForm
+          line={line}
+          customers={customers}
+          suppliers={suppliers}
+          investors={investors}
+          incomeAccounts={incomeAccounts}
+          expenseAccounts={expenseAccounts}
+        />
+      ) : null}
     </div>
   );
 }

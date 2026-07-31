@@ -68,8 +68,12 @@ function formatStatus(status?: string | null) {
 }
 
 function formatBankStatus(status?: string | null) {
-  if (["UNMATCHED", "POSSIBLE_MATCH"].includes(status || "")) {
+  if (["UNMATCHED", "UNRECONCILED", "POSSIBLE_MATCH"].includes(status || "")) {
     return "Unreconciled";
+  }
+
+  if (status === "PARTIALLY_RECONCILED") {
+    return "Partially Reconciled";
   }
 
   if (["MATCHED", "ADDED_TO_BOOKS", "RECONCILED"].includes(status || "")) {
@@ -110,7 +114,7 @@ function getTabStatuses(tab: BankFeedTab) {
     return ["IGNORED", "EXCLUDED"];
   }
 
-  return ["UNMATCHED", "POSSIBLE_MATCH"];
+  return ["UNMATCHED", "UNRECONCILED", "POSSIBLE_MATCH", "PARTIALLY_RECONCILED"];
 }
 
 export default async function BankAccountDetailPage({
@@ -205,7 +209,12 @@ export default async function BankAccountDetailPage({
     .select("*", { count: "exact", head: true })
     .eq("organisation_id", id)
     .eq("bank_account_id", bankAccountId)
-    .in("reconciliation_status", ["UNMATCHED", "POSSIBLE_MATCH"]);
+    .in("reconciliation_status", [
+  "UNMATCHED",
+  "UNRECONCILED",
+  "POSSIBLE_MATCH",
+  "PARTIALLY_RECONCILED",
+]);
 
   const { count: reconciledLinesCount } = await supabase
     .from("bank_statement_lines")
@@ -224,8 +233,8 @@ export default async function BankAccountDetailPage({
   const { data: statementLines } = await supabase
     .from("bank_statement_lines")
     .select(
-      "id, transaction_date, value_date, description, reference_number, money_in, money_out, running_balance, currency_code, reconciliation_status, matched_source_module, matched_source_record_id, added_transaction_module, added_transaction_id, created_at"
-    )
+  "id, transaction_date, value_date, description, reference_number, money_in, money_out, running_balance, currency_code, reconciliation_status, allocated_amount, unallocated_amount, matched_source_module, matched_source_record_id, added_transaction_module, added_transaction_id, created_at"
+)
     .eq("organisation_id", id)
     .eq("bank_account_id", bankAccountId)
     .in("reconciliation_status", selectedStatuses)
@@ -441,6 +450,75 @@ export default async function BankAccountDetailPage({
       }))
     );
   }
+
+  const { data: customers } = await supabase
+  .from("customers")
+  .select("id, customer_name")
+  .eq("organisation_id", id)
+  .eq("is_active", true)
+  .order("customer_name", { ascending: true });
+
+const { data: suppliers } = await supabase
+  .from("suppliers")
+  .select("id, supplier_name")
+  .eq("organisation_id", id)
+  .eq("is_active", true)
+  .order("supplier_name", { ascending: true });
+
+const { data: investors } = await supabase
+  .from("investors")
+  .select("id, investor_name")
+  .eq("organisation_id", id)
+  .eq("is_active", true)
+  .order("investor_name", { ascending: true });
+
+const { data: incomeAccounts } = await supabase
+  .from("chart_of_accounts")
+  .select("id, account_code, account_name, account_type")
+  .eq("organisation_id", id)
+  .eq("is_active", true)
+  .eq("account_type", "Income")
+  .order("account_code", { ascending: true });
+
+const { data: expenseAccounts } = await supabase
+  .from("chart_of_accounts")
+  .select("id, account_code, account_name, account_type")
+  .eq("organisation_id", id)
+  .eq("is_active", true)
+  .eq("account_type", "Expense")
+  .order("account_code", { ascending: true });
+
+const customerOptions =
+  customers?.map((customer) => ({
+    id: customer.id,
+    name: customer.customer_name || "Unnamed customer",
+  })) || [];
+
+const supplierOptions =
+  suppliers?.map((supplier) => ({
+    id: supplier.id,
+    name: supplier.supplier_name || "Unnamed supplier",
+  })) || [];
+
+const investorOptions =
+  investors?.map((investor) => ({
+    id: investor.id,
+    name: investor.investor_name || "Unnamed funder",
+  })) || [];
+
+const incomeAccountOptions =
+  incomeAccounts?.map((account) => ({
+    id: account.id,
+    label: `${account.account_code || ""} ${account.account_name || ""}`.trim(),
+    account_type: account.account_type,
+  })) || [];
+
+const expenseAccountOptions =
+  expenseAccounts?.map((account) => ({
+    id: account.id,
+    label: `${account.account_code || ""} ${account.account_name || ""}`.trim(),
+    account_type: account.account_type,
+  })) || [];
 
   const organisationName =
     organisation.trading_name || organisation.legal_name || "Organisation";
@@ -813,17 +891,25 @@ export default async function BankAccountDetailPage({
 
                       <td className="whitespace-nowrap px-6 py-5 text-right text-sm">
                         <BankLineInlineActions
-                          organisationId={organisation.id}
-                          bankAccountId={bankAccount.id}
-                          line={{
-                            id: line.id,
-                            money_in: line.money_in,
-                            money_out: line.money_out,
-                            currency_code: line.currency_code,
-                            reconciliation_status: line.reconciliation_status,
-                          }}
-                          candidates={candidates}
-                        />
+  organisationId={organisation.id}
+  bankAccountId={bankAccount.id}
+  line={{
+  id: line.id,
+  description: line.description,
+  money_in: line.money_in,
+  money_out: line.money_out,
+  currency_code: line.currency_code,
+  reconciliation_status: line.reconciliation_status,
+  allocated_amount: line.allocated_amount,
+  unallocated_amount: line.unallocated_amount,
+}}
+  candidates={candidates}
+  customers={customerOptions}
+  suppliers={supplierOptions}
+  investors={investorOptions}
+  incomeAccounts={incomeAccountOptions}
+  expenseAccounts={expenseAccountOptions}
+/>
                       </td>
                     </tr>
                   ))}
