@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import AddBankLineToBooksForm from "./AddBankLineToBooksForm";
+import BankLineAllocationHistory from "./BankLineAllocationHistory";
 
 type SourceCandidate = {
   source_module: string;
@@ -35,6 +36,20 @@ type BankLine = {
   reconciliation_status: string | null;
   allocated_amount?: number | null;
   unallocated_amount?: number | null;
+};
+
+type AllocationHistoryItem = {
+  id: string;
+  bank_statement_line_id: string;
+  allocation_type: string | null;
+  source_module: string | null;
+  source_record_id: string | null;
+  allocation_description: string | null;
+  allocation_amount: number | null;
+  bank_charge_treatment: string | null;
+  bank_charge_amount: number | null;
+  status: string | null;
+  created_at: string | null;
 };
 
 function formatStatus(status?: string | null) {
@@ -77,6 +92,7 @@ export default function BankLineInlineActions({
   investors,
   incomeAccounts,
   expenseAccounts,
+  allocationHistory,
 }: {
   organisationId: string;
   bankAccountId: string;
@@ -87,6 +103,7 @@ export default function BankLineInlineActions({
   investors: PartyOption[];
   incomeAccounts: AccountOption[];
   expenseAccounts: AccountOption[];
+  allocationHistory: AllocationHistoryItem[];
 }) {
   const router = useRouter();
 
@@ -386,6 +403,8 @@ export default function BankLineInlineActions({
           {excluding ? "Excluding..." : "Exclude"}
         </button>
       </div>
+
+<BankLineAllocationHistory allocations={allocationHistory} />
 
       {showAddForm ? (
         <AddBankLineToBooksForm

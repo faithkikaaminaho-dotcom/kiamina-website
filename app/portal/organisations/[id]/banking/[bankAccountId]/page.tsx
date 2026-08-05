@@ -35,6 +35,20 @@ type SourceCandidate = {
   status: string | null;
 };
 
+type AllocationHistoryItem = {
+  id: string;
+  bank_statement_line_id: string;
+  allocation_type: string | null;
+  source_module: string | null;
+  source_record_id: string | null;
+  allocation_description: string | null;
+  allocation_amount: number | null;
+  bank_charge_treatment: string | null;
+  bank_charge_amount: number | null;
+  status: string | null;
+  created_at: string | null;
+};
+
 type BankFeedTab = "unreconciled" | "reconciled" | "excluded";
 
 function formatMoney(currencyCode?: string | null, amount?: number | null) {
@@ -210,11 +224,11 @@ export default async function BankAccountDetailPage({
     .eq("organisation_id", id)
     .eq("bank_account_id", bankAccountId)
     .in("reconciliation_status", [
-  "UNMATCHED",
-  "UNRECONCILED",
-  "POSSIBLE_MATCH",
-  "PARTIALLY_RECONCILED",
-]);
+      "UNMATCHED",
+      "UNRECONCILED",
+      "POSSIBLE_MATCH",
+      "PARTIALLY_RECONCILED",
+    ]);
 
   const { count: reconciledLinesCount } = await supabase
     .from("bank_statement_lines")
@@ -233,13 +247,43 @@ export default async function BankAccountDetailPage({
   const { data: statementLines } = await supabase
     .from("bank_statement_lines")
     .select(
-  "id, transaction_date, value_date, description, reference_number, money_in, money_out, running_balance, currency_code, reconciliation_status, allocated_amount, unallocated_amount, matched_source_module, matched_source_record_id, added_transaction_module, added_transaction_id, created_at"
-)
+      "id, transaction_date, value_date, description, reference_number, money_in, money_out, running_balance, currency_code, reconciliation_status, allocated_amount, unallocated_amount, matched_source_module, matched_source_record_id, added_transaction_module, added_transaction_id, created_at"
+    )
     .eq("organisation_id", id)
     .eq("bank_account_id", bankAccountId)
     .in("reconciliation_status", selectedStatuses)
     .order("transaction_date", { ascending: false })
     .limit(50);
+
+  const statementLineIds = statementLines?.map((line) => line.id) || [];
+
+  const { data: allocationHistoryData } =
+    statementLineIds.length > 0
+      ? await supabase
+          .from("bank_reconciliation_allocations")
+          .select(
+            "id, bank_statement_line_id, allocation_type, source_module, source_record_id, allocation_description, allocation_amount, bank_charge_treatment, bank_charge_amount, status, created_at"
+          )
+          .eq("organisation_id", id)
+          .eq("bank_account_id", bankAccountId)
+          .in("bank_statement_line_id", statementLineIds)
+          .order("created_at", { ascending: false })
+      : { data: [] };
+
+  const allocationHistory = (allocationHistoryData ||
+    []) as AllocationHistoryItem[];
+
+  const allocationsByLineId = allocationHistory.reduce<
+    Record<string, AllocationHistoryItem[]>
+  >((groups, allocation) => {
+    if (!groups[allocation.bank_statement_line_id]) {
+      groups[allocation.bank_statement_line_id] = [];
+    }
+
+    groups[allocation.bank_statement_line_id].push(allocation);
+
+    return groups;
+  }, {});
 
   const { data: statementImports } = await supabase
     .from("bank_statement_imports")
@@ -452,73 +496,99 @@ export default async function BankAccountDetailPage({
   }
 
   const { data: customers } = await supabase
-  .from("customers")
-  .select("id, customer_name")
-  .eq("organisation_id", id)
-  .eq("is_active", true)
-  .order("customer_name", { ascending: true });
+    .from("customers")
+    .select("id, customer_name")
+    .eq("organisation_id", id)
+    .eq("is_active", true)
+    .order("customer_name", { ascending: true });
 
-const { data: suppliers } = await supabase
-  .from("suppliers")
-  .select("id, supplier_name")
-  .eq("organisation_id", id)
-  .eq("is_active", true)
-  .order("supplier_name", { ascending: true });
+  const { data: suppliers } = await supabase
+    .from("suppliers")
+    .select("id, supplier_name")
+    .eq("organisation_id", id)
+    .eq("is_active", true)
+    .order("supplier_name", { ascending: true });
 
-const { data: investors } = await supabase
-  .from("investors")
-  .select("id, investor_name")
-  .eq("organisation_id", id)
-  .eq("is_active", true)
-  .order("investor_name", { ascending: true });
+  const { data: investors } = await supabase
+    .from("investors")
+    .select("id, investor_name")
+    .eq("organisation_id", id)
+    .eq("is_active", true)
+    .order("investor_name", { ascending: true });
 
-const { data: incomeAccounts } = await supabase
-  .from("chart_of_accounts")
-  .select("id, account_code, account_name, account_type")
-  .eq("organisation_id", id)
-  .eq("is_active", true)
-  .eq("account_type", "Income")
-  .order("account_code", { ascending: true });
+  const { data: allActiveAccounts } = await supabase
+    .from("chart_of_accounts")
+    .select(
+      "id, account_code, account_name, account_type, account_subtype, fs_section, fs_line_item"
+    )
+    .eq("organisation_id", id)
+    .eq("is_active", true)
+    .order("account_code", { ascending: true });
 
-const { data: expenseAccounts } = await supabase
-  .from("chart_of_accounts")
-  .select("id, account_code, account_name, account_type")
-  .eq("organisation_id", id)
-  .eq("is_active", true)
-  .eq("account_type", "Expense")
-  .order("account_code", { ascending: true });
+  const incomeAccounts =
+    allActiveAccounts?.filter((account) => {
+      const accountType = String(account.account_type || "").toLowerCase();
+      const accountSubtype = String(account.account_subtype || "").toLowerCase();
+      const fsSection = String(account.fs_section || "").toLowerCase();
+      const fsLineItem = String(account.fs_line_item || "").toLowerCase();
 
-const customerOptions =
-  customers?.map((customer) => ({
-    id: customer.id,
-    name: customer.customer_name || "Unnamed customer",
-  })) || [];
+      return (
+        accountType.includes("income") ||
+        accountType.includes("revenue") ||
+        accountSubtype.includes("income") ||
+        accountSubtype.includes("revenue") ||
+        fsSection.includes("profit") ||
+        fsLineItem.includes("revenue") ||
+        fsLineItem.includes("income")
+      );
+    }) || [];
 
-const supplierOptions =
-  suppliers?.map((supplier) => ({
-    id: supplier.id,
-    name: supplier.supplier_name || "Unnamed supplier",
-  })) || [];
+  const expenseAccounts =
+    allActiveAccounts?.filter((account) => {
+      const accountType = String(account.account_type || "").toLowerCase();
+      const accountSubtype = String(account.account_subtype || "").toLowerCase();
+      const fsLineItem = String(account.fs_line_item || "").toLowerCase();
 
-const investorOptions =
-  investors?.map((investor) => ({
-    id: investor.id,
-    name: investor.investor_name || "Unnamed funder",
-  })) || [];
+      return (
+        accountType.includes("expense") ||
+        accountSubtype.includes("expense") ||
+        fsLineItem.includes("expense") ||
+        fsLineItem.includes("cost") ||
+        fsLineItem.includes("charge")
+      );
+    }) || [];
 
-const incomeAccountOptions =
-  incomeAccounts?.map((account) => ({
-    id: account.id,
-    label: `${account.account_code || ""} ${account.account_name || ""}`.trim(),
-    account_type: account.account_type,
-  })) || [];
+  const customerOptions =
+    customers?.map((customer) => ({
+      id: customer.id,
+      name: customer.customer_name || "Unnamed customer",
+    })) || [];
 
-const expenseAccountOptions =
-  expenseAccounts?.map((account) => ({
-    id: account.id,
-    label: `${account.account_code || ""} ${account.account_name || ""}`.trim(),
-    account_type: account.account_type,
-  })) || [];
+  const supplierOptions =
+    suppliers?.map((supplier) => ({
+      id: supplier.id,
+      name: supplier.supplier_name || "Unnamed supplier",
+    })) || [];
+
+  const investorOptions =
+    investors?.map((investor) => ({
+      id: investor.id,
+      name: investor.investor_name || "Unnamed funder",
+    })) || [];
+
+  const incomeAccountOptions =
+    incomeAccounts.map((account) => ({
+      id: account.id,
+      label: `${account.account_code || ""} ${account.account_name || ""}`.trim(),
+      account_type: account.account_type,
+    })) || [];
+
+  const expenseAccountOptions =
+    expenseAccounts.map((account) => ({
+      id: account.id,
+      label: `${account.account_code || ""} ${account.account_name || ""}`.trim(),
+      account_type: account.account_type,
+    })) || [];
 
   const organisationName =
     organisation.trading_name || organisation.legal_name || "Organisation";
@@ -597,9 +667,7 @@ const expenseAccountOptions =
             </div>
 
             <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F1F1F1] p-5 text-sm text-slate-600">
-              <div className="font-semibold text-slate-950">
-                Current Balance
-              </div>
+              <div className="font-semibold text-slate-950">Current Balance</div>
 
               <div className="mt-3 text-2xl font-semibold text-slate-950">
                 {formatMoney(bankAccount.currency_code, bankAccount.current_balance)}
@@ -652,18 +720,14 @@ const expenseAccountOptions =
           </div>
 
           <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-white p-6 shadow-sm">
-            <div className="text-sm font-medium text-slate-500">
-              Reconciled
-            </div>
+            <div className="text-sm font-medium text-slate-500">Reconciled</div>
             <div className="mt-5 text-3xl font-semibold text-slate-950">
               {reconciledLinesCount ?? 0}
             </div>
           </div>
 
           <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-white p-6 shadow-sm">
-            <div className="text-sm font-medium text-slate-500">
-              Excluded
-            </div>
+            <div className="text-sm font-medium text-slate-500">Excluded</div>
             <div className="mt-5 text-3xl font-semibold text-slate-950">
               {excludedLinesCount ?? 0}
             </div>
@@ -711,7 +775,10 @@ const expenseAccountOptions =
                         Opening Balance
                       </div>
                       <div className="mt-1 font-semibold text-slate-950">
-                        {formatMoney(bankAccount.currency_code, record.opening_balance)}
+                        {formatMoney(
+                          bankAccount.currency_code,
+                          record.opening_balance
+                        )}
                       </div>
                     </div>
 
@@ -720,7 +787,10 @@ const expenseAccountOptions =
                         Closing Balance
                       </div>
                       <div className="mt-1 font-semibold text-slate-950">
-                        {formatMoney(bankAccount.currency_code, record.closing_balance)}
+                        {formatMoney(
+                          bankAccount.currency_code,
+                          record.closing_balance
+                        )}
                       </div>
                     </div>
                   </div>
@@ -891,25 +961,26 @@ const expenseAccountOptions =
 
                       <td className="whitespace-nowrap px-6 py-5 text-right text-sm">
                         <BankLineInlineActions
-  organisationId={organisation.id}
-  bankAccountId={bankAccount.id}
-  line={{
-  id: line.id,
-  description: line.description,
-  money_in: line.money_in,
-  money_out: line.money_out,
-  currency_code: line.currency_code,
-  reconciliation_status: line.reconciliation_status,
-  allocated_amount: line.allocated_amount,
-  unallocated_amount: line.unallocated_amount,
-}}
-  candidates={candidates}
-  customers={customerOptions}
-  suppliers={supplierOptions}
-  investors={investorOptions}
-  incomeAccounts={incomeAccountOptions}
-  expenseAccounts={expenseAccountOptions}
-/>
+                          organisationId={organisation.id}
+                          bankAccountId={bankAccount.id}
+                          line={{
+                            id: line.id,
+                            description: line.description,
+                            money_in: line.money_in,
+                            money_out: line.money_out,
+                            currency_code: line.currency_code,
+                            reconciliation_status: line.reconciliation_status,
+                            allocated_amount: line.allocated_amount,
+                            unallocated_amount: line.unallocated_amount,
+                          }}
+                          candidates={candidates}
+                          customers={customerOptions}
+                          suppliers={supplierOptions}
+                          investors={investorOptions}
+                          incomeAccounts={incomeAccountOptions}
+                          expenseAccounts={expenseAccountOptions}
+                          allocationHistory={allocationsByLineId[line.id] || []}
+                        />
                       </td>
                     </tr>
                   ))}
