@@ -4,10 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   BarChart3,
-  BriefcaseBusiness,
   CheckCircle2,
   CreditCard,
   FileSpreadsheet,
+  HeartHandshake,
   Layers3,
   LineChart,
   ReceiptText,
@@ -119,7 +119,7 @@ const tiers = [
     priceKey: "tier1" as const,
     volumeBasis: "Based on transaction volume and reporting complexity.",
     bestFor:
-      "Owner-managed businesses, early-stage companies, and SMEs that need reliable monthly compliance and clean books.",
+      "Businesses and nonprofits that need reliable monthly compliance, clean records, statutory readiness, and standard reporting discipline.",
   },
   {
     tier: "Tier 2",
@@ -133,12 +133,12 @@ const tiers = [
       "Payroll processing, payslips, PAYE, pension, and statutory deductions",
       "Management reporting packs with trend and variance analysis",
       "Accounts receivable and payable support",
-      "Vendor scheduling, invoicing, and cash cycle tracking",
+      "Vendor scheduling, invoicing, donor receivable tracking, and cash cycle support",
     ],
     priceKey: "tier2" as const,
-    volumeBasis: "Based on employee headcount, invoice volume, and reporting cadence.",
+    volumeBasis: "Based on employee headcount, invoice volume, reporting cadence, and operational complexity.",
     bestFor:
-      "Growing businesses that need a managed finance function but are not ready to hire a full internal finance team.",
+      "Growing businesses, NGOs, schools, churches, clinics, professional firms, and mission-driven organisations that need a managed finance function without building a full internal team.",
   },
   {
     tier: "Tier 3",
@@ -146,18 +146,18 @@ const tiers = [
     shortName: "Strategic CFO",
     icon: LineChart,
     summary:
-      "Everything in Tier 2 plus financial modelling and CFO consulting.",
+      "Everything in Tier 2 plus financial modelling, strategic reporting, and CFO consulting.",
     includes: [
       "Everything in Tier 2",
       "Financial modelling and scenario analysis",
       "12-month rolling forecasts",
       "CFO consulting and strategic decision support",
-      "Board, lender, and investor reporting packs",
+      "Board, lender, investor, donor, and grant reporting packs",
     ],
     priceKey: "tier3" as const,
     volumeBasis: "High-value monthly retainer based on strategic support scope.",
     bestFor:
-      "Funded startups, investor-backed companies, multi-entity businesses, NGOs, and growth-stage organisations needing CFO-level insight.",
+      "Funded startups, investor-backed companies, multi-entity businesses, NGOs, foundations, donor-funded organisations, and growth-stage organisations needing CFO-level insight.",
   },
 ];
 
@@ -175,7 +175,7 @@ const outsourcingBenefits = [
   {
     title: "Scalable finance capacity",
     description:
-      "Start with core compliance, expand into finance operations, then add CFO-level modelling and decision support as your business grows.",
+      "Start with core compliance, expand into finance operations, then add CFO-level modelling and decision support as your business or nonprofit grows.",
   },
 ];
 
@@ -232,15 +232,15 @@ export default function PricingPage() {
             </div>
 
             <h1 className="mt-6 text-5xl font-semibold tracking-tight text-slate-950 md:text-6xl">
-              Finance subscriptions built around compliance, operations, and
-              strategic growth.
+              Finance subscriptions for businesses, nonprofits, and
+              mission-driven organisations.
             </h1>
 
             <p className="mt-6 max-w-3xl text-lg leading-8 text-slate-600">
               Choose a monthly finance tier based on the level of support your
-              organisation needs. Kiamina is designed for businesses that need a
-              reliable finance function before they are ready to build a full
-              in-house team.
+              organisation needs. Kiamina serves both commercial organisations
+              and nonprofits that need reliable finance operations, compliance
+              discipline, reporting clarity, and strategic financial support.
             </p>
 
             <div className="mt-8 inline-flex rounded-full border border-[#D9E3F4] bg-[#F1F1F1] px-5 py-3 text-sm font-semibold text-[#073D7F]">
@@ -363,12 +363,12 @@ export default function PricingPage() {
               </h2>
 
               <p className="mt-4 max-w-4xl text-sm leading-7 text-slate-600">
-                Kiamina is designed for growing businesses that need reliable
-                finance capacity before they are ready to build a full in-house
-                finance department. Instead of hiring, training, supervising,
-                and replacing one finance employee, clients get access to
-                structured finance operations, monthly close discipline,
-                compliance support, management reporting, and senior review.
+                Kiamina is designed for organisations that need reliable finance
+                capacity before they are ready to build a full in-house finance
+                department. Instead of hiring, training, supervising, and
+                replacing one finance employee, clients get access to structured
+                finance operations, monthly close discipline, compliance support,
+                management reporting, and senior review.
               </p>
             </div>
           </div>
@@ -396,11 +396,82 @@ export default function PricingPage() {
             </div>
 
             <p className="mt-3 max-w-4xl text-base leading-8 text-white/80">
-              Our subscription model is best for businesses that need more than
-              basic bookkeeping, but do not yet need to hire a bookkeeper,
-              accountant, finance manager, payroll officer, and part-time CFO
-              separately.
+              Our subscription model is best for businesses and nonprofits that
+              need more than basic bookkeeping, but do not yet need to hire a
+              bookkeeper, accountant, finance manager, payroll officer, grants
+              finance specialist, and part-time CFO separately.
             </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-6 pb-14 lg:px-8">
+        <div className="rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
+          <div className="flex items-start gap-4">
+            <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[#F1F1F1] text-[#073D7F]">
+              <HeartHandshake className="h-6 w-6" />
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
+                Nonprofit & Social Impact Pricing
+              </div>
+
+              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
+                Mission-driven organisations may qualify for adjusted pricing.
+              </h2>
+
+              <p className="mt-4 max-w-4xl text-sm leading-7 text-slate-600">
+                Kiamina serves both businesses and nonprofit organisations.
+                Eligible nonprofits, NGOs, foundations, schools, churches, and
+                mission-driven organisations may qualify for adjusted pricing
+                based on funding structure, reporting complexity, donor or grant
+                requirements, transaction volume, payroll size, and the level of
+                finance support required.
+              </p>
+
+              <p className="mt-4 max-w-4xl text-sm leading-7 text-slate-600">
+                Where nonprofit discounts apply, they are designed to support
+                mission-driven work without reducing service quality, reporting
+                discipline, compliance standards, financial control, or review
+                procedures.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-8 grid gap-5 lg:grid-cols-3">
+            <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-6">
+              <h3 className="text-lg font-semibold text-slate-950">
+                Eligibility is scope-based
+              </h3>
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                Discounts are considered after reviewing funding sources,
+                restricted grants, donor reports, statutory obligations,
+                transaction volume, and payroll complexity.
+              </p>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-6">
+              <h3 className="text-lg font-semibold text-slate-950">
+                Complex reporting may require more support
+              </h3>
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                Nonprofits with donor restrictions, multi-currency grants,
+                project reporting, fund accounting, or audit requirements may
+                need higher-level finance support.
+              </p>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-6">
+              <h3 className="text-lg font-semibold text-slate-950">
+                Quality remains the same
+              </h3>
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                Adjusted pricing does not reduce monthly close discipline,
+                compliance monitoring, reporting standards, documentation, or
+                senior review.
+              </p>
+            </div>
           </div>
         </div>
       </section>
@@ -423,8 +494,9 @@ export default function PricingPage() {
 
               <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-600">
                 Use add-ons when you need a specific finance function, a
-                project-based deliverable, or extra support outside your core
-                monthly subscription.
+                project-based deliverable, donor reporting support, grant
+                finance support, or extra capacity outside your core monthly
+                subscription.
               </p>
             </div>
           </div>
@@ -474,6 +546,17 @@ export default function PricingPage() {
                     model updates.
                   </td>
                 </tr>
+
+                <tr>
+                  <td className="px-6 py-5 text-sm font-semibold text-slate-950">
+                    Grant & Donor Reporting Support
+                  </td>
+                  <td className="px-6 py-5 text-sm leading-7 text-slate-600">
+                    Monthly or project-based support for restricted funding,
+                    grant utilisation reports, donor schedules, fund tracking,
+                    and audit-ready grant documentation.
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -501,9 +584,9 @@ export default function PricingPage() {
             </h3>
             <p className="mt-3 text-sm leading-7 text-slate-600">
               Engagement letters define limits for transactions, employees,
-              invoices, reporting frequency, and response times. If volumes
-              exceed agreed limits for two consecutive months, the subscription
-              scales to the next level.
+              invoices, grant reports, reporting frequency, response times, and
+              compliance support. If volumes exceed agreed limits for two
+              consecutive months, the subscription may scale to the next level.
             </p>
           </div>
 
@@ -513,8 +596,9 @@ export default function PricingPage() {
               Setup and catch-up fee
             </h3>
             <p className="mt-3 text-sm leading-7 text-slate-600">
-              Where prior books are incomplete or disorganised, a one-time setup
-              and catch-up fee is charged before the monthly subscription starts.
+              Where prior books, grant records, fund schedules, payroll records,
+              or statutory filings are incomplete, a one-time setup and catch-up
+              fee is charged before the monthly subscription starts.
             </p>
           </div>
         </div>
@@ -527,13 +611,14 @@ export default function PricingPage() {
               </div>
 
               <h2 className="mt-4 text-3xl font-semibold tracking-tight">
-                Build a finance operating system that grows with your company.
+                Build a finance operating system that grows with your
+                organisation.
               </h2>
 
               <p className="mt-4 max-w-2xl text-sm leading-7 text-white/75">
                 Kiamina can begin with core compliance, expand into integrated
                 finance operations, and support strategic CFO decisions as your
-                business grows.
+                business or nonprofit grows.
               </p>
             </div>
 
@@ -561,8 +646,9 @@ export default function PricingPage() {
           <p>
             Pricing shown is indicative and may vary based on transaction
             volume, employee headcount, number of entities, reporting cadence,
-            catch-up work, industry complexity, statutory requirements, and
-            scope boundaries agreed in the engagement letter.
+            catch-up work, industry complexity, statutory requirements, donor or
+            grant reporting needs, restricted funding complexity, and scope
+            boundaries agreed in the engagement letter.
           </p>
         </div>
       </section>
