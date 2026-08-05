@@ -1,844 +1,569 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   BarChart3,
-  BookOpen,
-  Calculator,
-  ClipboardCheck,
-  Coins,
+  BriefcaseBusiness,
+  CheckCircle2,
+  CreditCard,
   FileSpreadsheet,
-  FileText,
-  Landmark,
+  Layers3,
+  LineChart,
   ReceiptText,
   ShieldCheck,
-  Sparkles,
-  Users,
+  UsersRound,
+  WalletCards,
 } from "lucide-react";
 
-const jurisdictions = [
+type JurisdictionKey = "NG" | "US" | "UK" | "CA" | "EU" | "AU";
+
+const jurisdictionLabels: Record<JurisdictionKey, string> = {
+  NG: "Nigeria",
+  US: "United States",
+  UK: "United Kingdom",
+  CA: "Canada",
+  EU: "Europe",
+  AU: "Australia",
+};
+
+const pricingByJurisdiction: Record<
+  JurisdictionKey,
   {
-    code: "NG",
-    country: "Nigeria",
+    currency: string;
+    tier1: string;
+    tier2: string;
+    tier3: string;
+    payroll: string;
+    tax: string;
+    modelling: string;
+    paymentRail: string;
+  }
+> = {
+  NG: {
     currency: "NGN",
-    framework: "IFRS",
-    marketPosition:
-      "Nigeria-focused accounting and finance support for service-based organisations",
-    servicePrices: {
-      bookkeeping: "₦50,000 / month",
-      payroll: "₦30,000 / month",
-      financialReporting: "₦100,000 / project",
-      managementReporting: "₦120,000 / month",
-      arAp: "₦60,000 / month",
-      cfo: "₦200,000 / month",
-      modelling: "₦180,000 / project",
-      tax: "₦60,000 / project",
-      fullService: "₦250,000 / month",
-    },
+    tier1: "₦250k–₦400k / month",
+    tier2: "₦650k–₦900k / month",
+    tier3: "₦1.8M+ / month",
+    payroll: "Base fee + per-employee charge",
+    tax: "Monthly statutory filing retainer",
+    modelling: "Fixed project fee or monthly update retainer",
+    paymentRail: "Paystack",
   },
-  {
-    code: "CA",
-    country: "Canada",
-    currency: "CAD",
-    framework: "IFRS",
-    marketPosition:
-      "Canada-focused remote accounting and finance operations support",
-    servicePrices: {
-      bookkeeping: "CAD 250 / month",
-      payroll: "CAD 120 / month",
-      financialReporting: "CAD 500 / project",
-      managementReporting: "CAD 450 / month",
-      arAp: "CAD 250 / month",
-      cfo: "CAD 1,000 / month",
-      modelling: "CAD 700 / project",
-      tax: "CAD 350 / project",
-      fullService: "CAD 850 / month",
-    },
-  },
-  {
-    code: "US",
-    country: "United States",
+  US: {
     currency: "USD",
-    framework: "US GAAP",
-    marketPosition:
-      "US-focused remote accounting and US GAAP-aligned finance support",
-    servicePrices: {
-      bookkeeping: "USD 250 / month",
-      payroll: "USD 120 / month",
-      financialReporting: "USD 500 / project",
-      managementReporting: "USD 450 / month",
-      arAp: "USD 250 / month",
-      cfo: "USD 1,000 / month",
-      modelling: "USD 700 / project",
-      tax: "USD 350 / project",
-      fullService: "USD 850 / month",
-    },
+    tier1: "$450–$750 / month",
+    tier2: "$950–$1,500 / month",
+    tier3: "$2,800+ / month",
+    payroll: "Base fee + per-employee charge",
+    tax: "Monthly compliance retainer",
+    modelling: "Fixed project fee or monthly update retainer",
+    paymentRail: "Paystack international card payment",
   },
-  {
-    code: "GB",
-    country: "United Kingdom",
+  UK: {
     currency: "GBP",
-    framework: "IFRS",
-    marketPosition:
-      "UK-focused remote accounting and finance operations support",
-    servicePrices: {
-      bookkeeping: "£150 / month",
-      payroll: "£80 / month",
-      financialReporting: "£350 / project",
-      managementReporting: "£300 / month",
-      arAp: "£180 / month",
-      cfo: "£750 / month",
-      modelling: "£500 / project",
-      tax: "£250 / project",
-      fullService: "£600 / month",
-    },
+    tier1: "£350–£600 / month",
+    tier2: "£750–£1,200 / month",
+    tier3: "£2,000+ / month",
+    payroll: "Base fee + per-employee charge",
+    tax: "Monthly compliance retainer",
+    modelling: "Fixed project fee or monthly update retainer",
+    paymentRail: "Paystack international card payment",
   },
-  {
-    code: "AU",
-    country: "Australia",
-    currency: "AUD",
-    framework: "IFRS",
-    marketPosition:
-      "Australia-focused remote accounting and finance operations support",
-    servicePrices: {
-      bookkeeping: "AUD 300 / month",
-      payroll: "AUD 150 / month",
-      financialReporting: "AUD 550 / project",
-      managementReporting: "AUD 500 / month",
-      arAp: "AUD 300 / month",
-      cfo: "AUD 1,200 / month",
-      modelling: "AUD 800 / project",
-      tax: "AUD 400 / project",
-      fullService: "AUD 950 / month",
-    },
+  CA: {
+    currency: "CAD",
+    tier1: "CA$500–CA$800 / month",
+    tier2: "CA$950–CA$1,500 / month",
+    tier3: "CA$2,500+ / month",
+    payroll: "Base fee + per-employee charge",
+    tax: "Monthly compliance retainer",
+    modelling: "Fixed project fee or monthly update retainer",
+    paymentRail: "Paystack international card payment",
   },
-  {
-    code: "IE",
-    country: "Ireland",
+  EU: {
     currency: "EUR",
-    framework: "IFRS",
-    marketPosition:
-      "Ireland-focused remote accounting and finance operations support",
-    servicePrices: {
-      bookkeeping: "€180 / month",
-      payroll: "€90 / month",
-      financialReporting: "€400 / project",
-      managementReporting: "€350 / month",
-      arAp: "€200 / month",
-      cfo: "€850 / month",
-      modelling: "€550 / project",
-      tax: "€280 / project",
-      fullService: "€700 / month",
-    },
+    tier1: "€400–€650 / month",
+    tier2: "€850–€1,350 / month",
+    tier3: "€2,300+ / month",
+    payroll: "Base fee + per-employee charge",
+    tax: "Monthly compliance retainer",
+    modelling: "Fixed project fee or monthly update retainer",
+    paymentRail: "Paystack international card payment",
   },
-];
+  AU: {
+    currency: "AUD",
+    tier1: "A$600–A$900 / month",
+    tier2: "A$1,200–A$1,800 / month",
+    tier3: "A$3,200+ / month",
+    payroll: "Base fee + per-employee charge",
+    tax: "Monthly compliance retainer",
+    modelling: "Fixed project fee or monthly update retainer",
+    paymentRail: "Paystack international card payment",
+  },
+};
 
-const services = [
+const tiers = [
   {
-    key: "bookkeeping",
-    service: "Bookkeeping",
-    icon: BookOpen,
-    billing: "Monthly",
-    description:
-      "Structured bookkeeping support for service-based organisations that require reliable, current, and properly classified accounting records.",
-    includes: [
-      "Monthly transaction classification, posting, and coding review",
-      "Bank, cashbook, wallet, and control account reconciliation support",
-      "Accounts ledger maintenance with exception identification and follow-up",
-      "Review of supporting documents for completeness and audit trail quality",
-      "Month-end bookkeeping status summary for management visibility",
-    ],
-    bestFor:
-      "Service businesses that require clean accounting records, stronger documentation discipline, and timely month-end updates.",
-  },
-  {
-    key: "payroll",
-    service: "Payroll Processing",
-    icon: Users,
-    billing: "Monthly",
-    description:
-      "Payroll processing support for organisations that require accurate payroll records, payroll schedules, and statutory payroll documentation.",
-    includes: [
-      "Monthly payroll computation and payroll schedule preparation",
-      "Review of employee earnings, deductions, benefits, and statutory payroll items",
-      "Payroll cost analysis and staff cost reporting support",
-      "Payslip preparation support and payroll documentation pack",
-      "Payroll control summary for management review and approval",
-    ],
-    bestFor:
-      "Employers that require accurate payroll processing, controlled payroll records, and stronger visibility over staff cost obligations.",
-  },
-  {
-    key: "financialReporting",
-    service: "Financial Reporting",
-    icon: FileText,
-    billing: "Project or monthly",
-    description:
-      "Financial reporting support aligned to the applicable reporting framework in the selected jurisdiction.",
-    includes: [
-      "Trial balance review and reporting readiness assessment",
-      "Preparation support for financial statements and supporting schedules",
-      "IFRS or US GAAP alignment based on the selected jurisdiction",
-      "Review of key balances, classifications, and reporting disclosures",
-      "Management-ready reporting pack for executive, board, lender, donor, or stakeholder review",
-    ],
-    bestFor:
-      "Organisations preparing periodic, annual, board-level, lender-facing, donor-facing, or stakeholder-facing financial reports.",
-  },
-  {
-    key: "managementReporting",
-    service: "Management Reporting",
-    icon: BarChart3,
-    billing: "Monthly",
-    description:
-      "Decision-focused reporting for executives, directors, founders, boards, and finance leaders who require insight beyond basic accounting records.",
-    includes: [
-      "Monthly management accounts and performance reporting pack",
-      "Revenue, cost, margin, cash flow, and working capital analysis",
-      "Budget versus actual reporting with variance commentary",
-      "Key performance indicators tailored to the organisation’s operating model",
-      "Executive commentary highlighting trends, risks, exceptions, and management actions",
-    ],
-    bestFor:
-      "Leadership teams that require timely financial visibility, stronger operational control, and decision-ready reporting.",
-  },
-  {
-    key: "arAp",
-    service: "Accounts Receivable and Payable Management",
-    icon: ReceiptText,
-    billing: "Monthly",
-    description:
-      "Structured support for receivables, payables, customer invoicing, supplier bills, ageing analysis, and payment tracking.",
-    includes: [
-      "Receivables and payables ledger monitoring",
-      "Customer invoice tracking and collection status reporting",
-      "Supplier bill tracking and payment obligation review",
-      "Ageing analysis for receivables, payables, overdue balances, and exposure",
-      "Working capital insights to support cash flow planning and management action",
-    ],
-    bestFor:
-      "Service organisations with recurring customer invoices, supplier obligations, collection follow-up needs, and working capital pressure.",
-  },
-  {
-    key: "cfo",
-    service: "CFO Consulting",
-    icon: Landmark,
-    billing: "Monthly retainer or project",
-    description:
-      "Senior finance support for organisations that require strategic financial guidance without maintaining a full-time CFO function.",
-    includes: [
-      "Monthly financial performance review with leadership",
-      "Cash flow, profitability, liquidity, and working capital advisory",
-      "Board, management, investor, lender, or donor reporting support",
-      "Financial control, reporting structure, and finance process recommendations",
-      "Strategic finance guidance for growth, restructuring, funding, or operational decisions",
-    ],
-    bestFor:
-      "Executives, founders, boards, and finance leaders requiring senior-level financial insight, financial control, and commercial decision support.",
-  },
-  {
-    key: "modelling",
-    service: "Financial Modelling",
-    icon: Calculator,
-    billing: "Project",
-    description:
-      "Structured financial modelling support for planning, investment decisions, fundraising, expansion, projects, and scenario analysis.",
-    includes: [
-      "Revenue, cost, cash flow, and profitability model development",
-      "Scenario, sensitivity, and assumption-driven analysis",
-      "Funding, expansion, project, or investment model support",
-      "Model outputs structured for management, investors, lenders, or board review",
-      "Assumptions documentation and management presentation support",
-    ],
-    bestFor:
-      "Organisations evaluating growth, funding, expansion, restructuring, new projects, or major commercial decisions.",
-  },
-  {
-    key: "tax",
-    service: "Tax Compliance",
+    tier: "Tier 1",
+    name: "Core Compliance & Reporting",
+    shortName: "Core Compliance",
     icon: ShieldCheck,
-    billing: "Project or recurring compliance",
-    description:
-      "Tax compliance support focused on documentation readiness, schedules, filing coordination, and compliance visibility.",
+    summary: "Bookkeeping, financial reporting, and tax compliance.",
     includes: [
-      "Tax compliance calendar and filing obligation tracking",
-      "Preparation and review of supporting tax schedules",
-      "Review of source documents for tax readiness and completeness",
-      "Tax filing coordination support based on applicable jurisdiction",
-      "Compliance status reporting highlighting outstanding items, risks, and deadlines",
+      "Monthly bookkeeping and close support",
+      "Chart of accounts maintenance",
+      "Bank and ledger reconciliations",
+      "Standard profit or loss, balance sheet, and cash flow reporting",
+      "Monthly tax tracking and statutory filing preparation",
     ],
+    priceKey: "tier1" as const,
+    volumeBasis: "Based on transaction volume and reporting complexity.",
     bestFor:
-      "Businesses and nonprofits that require stronger tax compliance control, better documentation, and clearer visibility over filing obligations.",
+      "Owner-managed businesses, early-stage companies, and SMEs that need reliable monthly compliance and clean books.",
+  },
+  {
+    tier: "Tier 2",
+    name: "Integrated Finance Operations",
+    shortName: "Integrated Finance Operations",
+    icon: Layers3,
+    summary:
+      "Everything in Tier 1 plus payroll, management reporting, and AR/AP support.",
+    includes: [
+      "Everything in Tier 1",
+      "Payroll processing, payslips, PAYE, pension, and statutory deductions",
+      "Management reporting packs with trend and variance analysis",
+      "Accounts receivable and payable support",
+      "Vendor scheduling, invoicing, and cash cycle tracking",
+    ],
+    priceKey: "tier2" as const,
+    volumeBasis: "Based on employee headcount, invoice volume, and reporting cadence.",
+    bestFor:
+      "Growing businesses that need a managed finance function but are not ready to hire a full internal finance team.",
+  },
+  {
+    tier: "Tier 3",
+    name: "Strategic CFO & Growth",
+    shortName: "Strategic CFO",
+    icon: LineChart,
+    summary:
+      "Everything in Tier 2 plus financial modelling and CFO consulting.",
+    includes: [
+      "Everything in Tier 2",
+      "Financial modelling and scenario analysis",
+      "12-month rolling forecasts",
+      "CFO consulting and strategic decision support",
+      "Board, lender, and investor reporting packs",
+    ],
+    priceKey: "tier3" as const,
+    volumeBasis: "High-value monthly retainer based on strategic support scope.",
+    bestFor:
+      "Funded startups, investor-backed companies, multi-entity businesses, NGOs, and growth-stage organisations needing CFO-level insight.",
   },
 ];
 
-const fullServiceIncludes = [
-  "Bookkeeping operations",
-  "Payroll processing support",
-  "Management reporting pack",
-  "Receivables and payables monitoring",
-  "Tax compliance coordination",
-  "Monthly financial review",
-  "Document quality follow-up",
-  "Compliance status reporting",
-];
-
-const fullServiceScope = [
-  "Structured month-end close support, including review of transactions, reconciliations, and outstanding documentation.",
-  "Monthly management reporting pack covering performance, cash flow, working capital, exceptions, and key financial movements.",
-  "Payroll processing coordination, payroll records maintenance, and staff cost visibility for management review.",
-  "Receivables and payables monitoring, including ageing analysis, collection visibility, payment obligations, and working capital insights.",
-  "Tax compliance coordination with documentation readiness checks, filing support, compliance calendar tracking, and status reporting.",
-  "Monthly finance review discussion focused on key issues, risks, decisions, and management actions.",
-];
-
-const pricingFactors = [
-  "Transaction volume and document quality",
-  "Number of bank accounts and payment channels",
-  "Payroll size and payroll complexity",
-  "Reporting frequency and stakeholder requirements",
-  "Number of entities, branches, locations, or projects",
-  "Jurisdiction-specific compliance requirements",
-  "Backlog level and urgency of remediation",
-  "Level of management review and advisory support required",
-];
-
-const industries = [
+const outsourcingBenefits = [
   {
-    industry: "Oil & Gas Servicing",
-    focus:
-      "Project cost tracking, vendor obligations, contract billing, receivables control, tax documentation, payroll visibility, and management reporting.",
+    title: "One employee gives you one person",
+    description:
+      "Kiamina gives you a structured finance function with bookkeeping, reporting, compliance support, review discipline, and senior oversight.",
   },
   {
-    industry: "Real Estate",
-    focus:
-      "Rental income tracking, project expenditure, service charge records, contractor payments, investor reporting, and cash flow visibility.",
+    title: "Lower hiring and supervision burden",
+    description:
+      "Avoid recruitment time, training, benefits, software setup, leave cover, replacement risk, and the management time required to supervise finance staff.",
   },
   {
-    industry: "ICT",
-    focus:
-      "Recurring revenue, implementation projects, contractor payments, cloud costs, project profitability, tax compliance, and management reporting.",
-  },
-  {
-    industry: "Construction",
-    focus:
-      "Contract revenue, supplier payments, project costs, retention balances, payroll, progress reporting, and cash flow control.",
-  },
-  {
-    industry: "Nonprofits",
-    focus:
-      "Donor reporting, restricted funds, grant documentation, compliance records, management accounts, accountability reporting, and expenditure tracking.",
-  },
-  {
-    industry: "Other Service Organisations",
-    focus:
-      "Client billing, payroll, supplier obligations, receivables monitoring, working capital visibility, compliance support, and decision-ready reporting.",
+    title: "Scalable finance capacity",
+    description:
+      "Start with core compliance, expand into finance operations, then add CFO-level modelling and decision support as your business grows.",
   },
 ];
-
-type Jurisdiction = (typeof jurisdictions)[number];
-type ServicePrices = Jurisdiction["servicePrices"];
-type ServiceKey = keyof ServicePrices;
-
-function getJurisdiction(code: string) {
-  return (
-    jurisdictions.find((jurisdiction) => jurisdiction.code === code) ||
-    jurisdictions[0]
-  );
-}
 
 export default function PricingPage() {
-  const [selectedCode, setSelectedCode] = useState("NG");
+  const [jurisdiction, setJurisdiction] = useState<JurisdictionKey>("NG");
 
   useEffect(() => {
-    const savedCode = localStorage.getItem("kiamina_jurisdiction");
+    const stored = window.localStorage.getItem("kiamina_jurisdiction");
 
-    if (savedCode && jurisdictions.some((item) => item.code === savedCode)) {
-      setSelectedCode(savedCode);
+    if (
+      stored === "NG" ||
+      stored === "US" ||
+      stored === "UK" ||
+      stored === "CA" ||
+      stored === "EU" ||
+      stored === "AU"
+    ) {
+      setJurisdiction(stored);
     }
 
-    const handleCustomJurisdictionChange = (event: Event) => {
-      const customEvent = event as CustomEvent<{ code?: string }>;
-      const code = customEvent.detail?.code;
+    function handleJurisdictionChange(event: Event) {
+      const customEvent = event as CustomEvent<{ jurisdiction?: JurisdictionKey }>;
 
-      if (code && jurisdictions.some((item) => item.code === code)) {
-        setSelectedCode(code);
+      if (customEvent.detail?.jurisdiction) {
+        setJurisdiction(customEvent.detail.jurisdiction);
       }
-    };
-
-    const handleStorageChange = (event: StorageEvent) => {
-      if (
-        event.key === "kiamina_jurisdiction" &&
-        event.newValue &&
-        jurisdictions.some((item) => item.code === event.newValue)
-      ) {
-        setSelectedCode(event.newValue);
-      }
-    };
+    }
 
     window.addEventListener(
       "kiamina-jurisdiction-change",
-      handleCustomJurisdictionChange
+      handleJurisdictionChange
     );
-
-    window.addEventListener("storage", handleStorageChange);
 
     return () => {
       window.removeEventListener(
         "kiamina-jurisdiction-change",
-        handleCustomJurisdictionChange
+        handleJurisdictionChange
       );
-
-      window.removeEventListener("storage", handleStorageChange);
     };
   }, []);
 
-  const selectedJurisdiction = useMemo(
-    () => getJurisdiction(selectedCode),
-    [selectedCode]
+  const pricing = useMemo(
+    () => pricingByJurisdiction[jurisdiction],
+    [jurisdiction]
   );
 
   return (
-    <main className="bg-white">
-      <section className="relative overflow-hidden bg-[#073D7F] px-6 py-24 text-white lg:px-8">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(100,145,222,0.35),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.16),transparent_30%)]" />
-
-        <div className="relative mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+    <main className="min-h-screen bg-[#F8FAFC]">
+      <section className="border-b border-[#D9E3F4] bg-white">
+        <div className="mx-auto max-w-7xl px-6 py-20 lg:px-8">
           <div className="max-w-4xl">
-            <div className="text-sm font-semibold uppercase tracking-[0.28em] text-[#A9C7FF]">
+            <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
               Pricing
             </div>
 
-            <h1 className="mt-6 text-5xl font-semibold tracking-tight sm:text-6xl">
-              Structured accounting support, priced by jurisdiction, scope, and
-              operating complexity.
+            <h1 className="mt-6 text-5xl font-semibold tracking-tight text-slate-950 md:text-6xl">
+              Finance subscriptions built around compliance, operations, and
+              strategic growth.
             </h1>
 
-            <p className="mt-6 max-w-3xl text-lg leading-9 text-blue-100">
-              Kiamina Accounting Services provides jurisdiction-specific
-              indicative starting fees for service-based organisations. Final
-              pricing is determined after assessing transaction volume, payroll
-              structure, reporting requirements, compliance obligations,
-              documentation quality, and the level of finance support required.
+            <p className="mt-6 max-w-3xl text-lg leading-8 text-slate-600">
+              Choose a monthly finance tier based on the level of support your
+              organisation needs. Kiamina is designed for businesses that need a
+              reliable finance function before they are ready to build a full
+              in-house team.
             </p>
 
-            <div className="mt-10 flex flex-col gap-4 sm:flex-row">
-              <Link
-                href="/contact"
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-[#073D7F] transition hover:-translate-y-0.5 hover:shadow-xl"
-              >
-                Request Pricing
-                <ArrowRight className="h-4 w-4" />
-              </Link>
+            <div className="mt-8 inline-flex rounded-full border border-[#D9E3F4] bg-[#F1F1F1] px-5 py-3 text-sm font-semibold text-[#073D7F]">
+              Showing indicative pricing for {jurisdictionLabels[jurisdiction]}{" "}
+              · {pricing.currency}
+            </div>
+          </div>
+        </div>
+      </section>
 
-              <Link
-                href="/services"
-                className="inline-flex items-center justify-center rounded-full border border-white/25 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
-              >
-                View Services
-              </Link>
+      <section className="mx-auto max-w-7xl px-6 py-14 lg:px-8">
+        <div className="rounded-[2rem] border border-[#D9E3F4] bg-white p-6 shadow-sm">
+          <div className="grid gap-4">
+            <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#073D7F] p-6 text-white">
+              <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/70">
+                Tier 3: Strategic CFO
+              </div>
+              <div className="mt-3 text-xl font-semibold">
+                Includes Tier 2 + Financial Modelling + CFO Consulting
+              </div>
             </div>
 
-            <p className="mt-6 max-w-3xl text-sm leading-7 text-blue-100">
-              Prices shown are indicative starting fees. A final quote is issued
-              after scope review, including documentation readiness, reporting
-              complexity, backlog, number of entities, payroll structure, and
-              compliance exposure.
-            </p>
-          </div>
+            <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#6491DE] p-6 text-white">
+              <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/80">
+                Tier 2: Integrated Finance Operations
+              </div>
+              <div className="mt-3 text-xl font-semibold">
+                Includes Tier 1 + Payroll + Management Reporting + AR/AP
+              </div>
+            </div>
 
-          <div className="relative">
-            <div className="absolute -inset-4 rounded-[2.5rem] bg-white/10 blur-2xl" />
-
-            <div className="relative overflow-hidden rounded-[2rem] border border-white/15 bg-white/10 p-3 shadow-2xl">
-              <Image
-                src="/pricing-advisory.png"
-                alt="Finance professionals reviewing accounting reports"
-                width={900}
-                height={700}
-                priority
-                className="h-[420px] w-full rounded-[1.5rem] object-cover"
-              />
-
-              <div className="absolute bottom-6 left-6 right-6 rounded-2xl border border-white/15 bg-[#073D7F]/85 p-5 text-white backdrop-blur">
-                <div className="text-sm font-semibold uppercase tracking-[0.22em] text-[#A9C7FF]">
-                  Scope-Led Pricing
-                </div>
-
-                <p className="mt-2 text-sm leading-6 text-blue-100">
-                  Indicative fees are aligned to jurisdiction, service scope,
-                  documentation quality, reporting requirements, and operating
-                  complexity.
-                </p>
+            <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F1F1F1] p-6 text-slate-950">
+              <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[#6491DE]">
+                Tier 1: Core Compliance
+              </div>
+              <div className="mt-3 text-xl font-semibold">
+                Bookkeeping + Financial Reporting + Tax Compliance
               </div>
             </div>
           </div>
         </div>
-      </section>
 
-      <section className="bg-[#F8FAFC] px-6 py-16 lg:px-8">
-        <div className="mx-auto max-w-7xl">
-          <div className="grid gap-6 lg:grid-cols-3">
-            <div className="rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
-              <Coins className="h-7 w-7 text-[#073D7F]" />
+        <div className="mt-10 grid gap-6 lg:grid-cols-3">
+          {tiers.map((tier) => {
+            const Icon = tier.icon;
 
-              <h2 className="mt-6 text-2xl font-semibold text-slate-950">
-                Scope-led starting fees
-              </h2>
+            return (
+              <article
+                key={tier.tier}
+                className="rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm"
+              >
+                <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[#F1F1F1] text-[#073D7F]">
+                  <Icon className="h-6 w-6" />
+                </div>
 
-              <p className="mt-4 text-sm leading-7 text-slate-600">
-                Our starting fees provide an accessible entry point for
-                service-based organisations, while final pricing is determined
-                by transaction volume, documentation quality, reporting
-                frequency, and compliance complexity.
-              </p>
-            </div>
+                <div className="mt-6 text-sm font-semibold uppercase tracking-[0.2em] text-[#6491DE]">
+                  {tier.tier}
+                </div>
 
-            <div className="rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
-              <ClipboardCheck className="h-7 w-7 text-[#073D7F]" />
+                <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
+                  {tier.name}
+                </h2>
 
-              <h2 className="mt-6 text-2xl font-semibold text-slate-950">
-                Scope review before final quote
-              </h2>
+                <p className="mt-4 text-sm leading-7 text-slate-600">
+                  {tier.summary}
+                </p>
 
-              <p className="mt-4 text-sm leading-7 text-slate-600">
-                Before final pricing, we assess documentation readiness,
-                reporting frequency, transaction volume, payroll structure, tax
-                exposure, backlog, and urgency.
-              </p>
-            </div>
+                <div className="mt-6 rounded-[1.25rem] bg-[#F8FAFC] p-5">
+                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Monthly subscription
+                  </div>
 
-            <div className="rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
-              <ShieldCheck className="h-7 w-7 text-[#073D7F]" />
+                  <div className="mt-2 text-2xl font-semibold text-slate-950">
+                    {pricing[tier.priceKey]}
+                  </div>
 
-              <h2 className="mt-6 text-2xl font-semibold text-slate-950">
-                Integrated finance support
-              </h2>
+                  <p className="mt-2 text-xs leading-6 text-slate-500">
+                    {tier.volumeBasis}
+                  </p>
+                </div>
 
-              <p className="mt-4 text-sm leading-7 text-slate-600">
-                Our integrated service model is designed for organisations that
-                require coordinated support across bookkeeping, payroll,
-                reporting, receivables, payables, tax compliance, and financial
-                review.
-              </p>
-            </div>
-          </div>
+                <div className="mt-6 rounded-[1.25rem] border border-[#D9E3F4] bg-white p-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#6491DE]">
+                    Best for
+                  </div>
+                  <p className="mt-2 text-sm leading-7 text-slate-600">
+                    {tier.bestFor}
+                  </p>
+                </div>
+
+                <div className="mt-6 space-y-3">
+                  {tier.includes.map((item) => (
+                    <div key={item} className="flex gap-3 text-sm text-slate-600">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 flex-none text-[#073D7F]" />
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            );
+          })}
         </div>
       </section>
 
-      <section className="px-6 py-20 lg:px-8">
-        <div className="mx-auto max-w-7xl">
-          <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr]">
+      <section className="mx-auto max-w-7xl px-6 pb-14 lg:px-8">
+        <div className="rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
+          <div className="flex items-start gap-4">
+            <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[#F1F1F1] text-[#073D7F]">
+              <UsersRound className="h-6 w-6" />
+            </div>
+
             <div>
               <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
-                Integrated Finance Operations Support
+                Why Outsource Instead of Hiring?
               </div>
 
-              <h2 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950">
-                Coordinated monthly support for the finance function.
+              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
+                Hiring one employee gives you one person. Kiamina gives you a
+                managed finance function.
               </h2>
 
-              <p className="mt-4 text-base leading-8 text-slate-600">
-                The full service option is structured for organisations that
-                require consistent finance function support across core
-                accounting operations, payroll processing, management reporting,
-                receivables, payables, tax compliance coordination, and monthly
-                financial review.
-              </p>
-
-              <p className="mt-4 text-base leading-8 text-slate-600">
-                This option is not a basic bookkeeping bundle. It is designed to
-                provide management with stronger financial visibility,
-                documentation discipline, compliance coordination, and
-                decision-ready reporting.
+              <p className="mt-4 max-w-4xl text-sm leading-7 text-slate-600">
+                Kiamina is designed for growing businesses that need reliable
+                finance capacity before they are ready to build a full in-house
+                finance department. Instead of hiring, training, supervising,
+                and replacing one finance employee, clients get access to
+                structured finance operations, monthly close discipline,
+                compliance support, management reporting, and senior review.
               </p>
             </div>
-
-            <div className="rounded-[2rem] border border-[#D9E3F4] bg-[#073D7F] p-8 text-white shadow-xl">
-              <div className="flex items-start justify-between gap-5">
-                <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-white">
-                  <Sparkles className="h-6 w-6" />
-                </div>
-
-                <span className="rounded-full bg-white px-4 py-2 text-xs font-semibold text-[#073D7F]">
-                  Integrated Support
-                </span>
-              </div>
-
-              <h3 className="mt-6 text-3xl font-semibold">Full Service</h3>
-
-              <div className="mt-4 text-4xl font-semibold">
-                {selectedJurisdiction.servicePrices.fullService}
-              </div>
-
-              <p className="mt-4 text-sm leading-7 text-blue-100">
-                Indicative starting monthly fee for integrated finance
-                operations support in {selectedJurisdiction.country}. Final fee
-                depends on transaction volume, payroll size, reporting needs,
-                documentation quality, and compliance complexity.
-              </p>
-
-              <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                {fullServiceIncludes.map((item) => (
-                  <div
-                    key={item}
-                    className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-blue-100"
-                  >
-                    {item}
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-5">
-                <div className="text-sm font-semibold text-white">
-                  Scope typically covers:
-                </div>
-
-                <ul className="mt-4 space-y-3">
-                  {fullServiceScope.map((scope) => (
-                    <li
-                      key={scope}
-                      className="flex gap-3 text-sm leading-6 text-blue-100"
-                    >
-                      <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#A9C7FF]" />
-                      <span>{scope}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <Link
-                href="/contact"
-                className="mt-8 inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-[#073D7F]"
-              >
-                Request Full Service Pricing
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-[#F8FAFC] px-6 py-20 lg:px-8">
-        <div className="mx-auto max-w-7xl">
-          <div className="max-w-3xl">
-            <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
-              Pricing by Service
-            </div>
-
-            <h2 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950">
-              Indicative starting fees in {selectedJurisdiction.currency}.
-            </h2>
-
-            <p className="mt-4 text-base leading-8 text-slate-600">
-              The starting fees below are shown for{" "}
-              <span className="font-semibold text-slate-950">
-                {selectedJurisdiction.country}
-              </span>
-              . Use the location selector in the header to view pricing for
-              another jurisdiction.
-            </p>
           </div>
 
-          <div className="mt-12 grid gap-6 lg:grid-cols-2">
-            {services.map((item) => {
-              const Icon = item.icon;
-              const price =
-                selectedJurisdiction.servicePrices[item.key as ServiceKey];
-
-              return (
-                <article
-                  key={`${selectedJurisdiction.code}-${item.service}`}
-                  className="rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
-                >
-                  <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[#F1F1F1] text-[#073D7F]">
-                      <Icon className="h-6 w-6" />
-                    </div>
-
-                    <span className="w-fit rounded-full bg-[#F1F1F1] px-4 py-2 text-xs font-semibold text-[#073D7F]">
-                      Starting from {price}
-                    </span>
-                  </div>
-
-                  <h3 className="mt-6 text-2xl font-semibold text-slate-950">
-                    {item.service}
-                  </h3>
-
-                  <p className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#6491DE]">
-                    {item.billing}
-                  </p>
-
-                  <p className="mt-4 text-sm leading-7 text-slate-600">
-                    {item.description}
-                  </p>
-
-                  <div className="mt-6 rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] p-5">
-                    <div className="text-sm font-semibold text-slate-950">
-                      Scope typically includes:
-                    </div>
-
-                    <ul className="mt-4 space-y-3">
-                      {item.includes.map((scope) => (
-                        <li
-                          key={scope}
-                          className="flex gap-3 text-sm leading-6 text-slate-600"
-                        >
-                          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#073D7F]" />
-                          <span>{scope}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <p className="mt-5 text-sm leading-7 text-slate-500">
-                    <span className="font-semibold text-slate-950">
-                      Relevant for:
-                    </span>{" "}
-                    {item.bestFor}
-                  </p>
-
-                  <Link
-                    href="/contact"
-                    className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-[#073D7F]"
-                  >
-                    Request pricing for {item.service}
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                </article>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      <section className="px-6 py-20 lg:px-8">
-        <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.9fr_1.1fr]">
-          <div>
-            <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
-              Pricing Drivers
-            </div>
-
-            <h2 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950">
-              What determines the final quote?
-            </h2>
-
-            <p className="mt-4 text-base leading-8 text-slate-600">
-              Starting fees provide a baseline. Final pricing is determined
-              after we understand the structure, complexity, reporting needs,
-              compliance exposure, and documentation quality of the organisation.
-            </p>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            {pricingFactors.map((factor) => (
+          <div className="mt-8 grid gap-5 lg:grid-cols-3">
+            {outsourcingBenefits.map((benefit) => (
               <div
-                key={factor}
-                className="rounded-2xl border border-[#D9E3F4] bg-white p-5 text-sm font-semibold text-slate-700 shadow-sm"
+                key={benefit.title}
+                className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-6"
               >
-                <FileSpreadsheet className="mb-4 h-5 w-5 text-[#073D7F]" />
-                {factor}
+                <h3 className="text-lg font-semibold text-slate-950">
+                  {benefit.title}
+                </h3>
+
+                <p className="mt-3 text-sm leading-7 text-slate-600">
+                  {benefit.description}
+                </p>
               </div>
             ))}
           </div>
+
+          <div className="mt-8 rounded-[1.5rem] bg-[#073D7F] p-6 text-white">
+            <div className="text-sm font-semibold uppercase tracking-[0.22em] text-white/60">
+              Positioning
+            </div>
+
+            <p className="mt-3 max-w-4xl text-base leading-8 text-white/80">
+              Our subscription model is best for businesses that need more than
+              basic bookkeeping, but do not yet need to hire a bookkeeper,
+              accountant, finance manager, payroll officer, and part-time CFO
+              separately.
+            </p>
+          </div>
         </div>
       </section>
 
-      <section className="bg-white px-6 py-24 lg:px-8">
-        <div className="mx-auto max-w-7xl">
-          <div className="grid gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
+      <section className="mx-auto max-w-7xl px-6 pb-14 lg:px-8">
+        <div className="rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
+          <div className="flex items-start gap-4">
+            <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[#F1F1F1] text-[#073D7F]">
+              <WalletCards className="h-6 w-6" />
+            </div>
+
             <div>
               <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
-                Industries We Serve
+                Modular Add-Ons
               </div>
 
-              <h2 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950">
-                Pricing aligned to the operating realities of service-based
-                organisations.
+              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
+                Add high-impact services without changing your core tier.
               </h2>
 
-              <p className="mt-5 text-base leading-8 text-slate-600">
-                Our pricing approach reflects the way service organisations
-                operate: contract-driven revenue, recurring payroll obligations,
-                documentation gaps, project-based costs, compliance exposure,
-                management reporting needs, and cash flow pressure.
+              <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-600">
+                Use add-ons when you need a specific finance function, a
+                project-based deliverable, or extra support outside your core
+                monthly subscription.
               </p>
-
-              <p className="mt-5 text-base leading-8 text-slate-600">
-                We do not use a one-size-fits-all pricing model. Fees are shaped
-                by transaction volume, reporting expectations, compliance
-                requirements, documentation quality, stakeholder reporting needs,
-                and the level of finance support required.
-              </p>
-
-              <div className="mt-8 rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-6">
-                <div className="text-sm font-semibold text-slate-950">
-                  Sector focus
-                </div>
-
-                <p className="mt-3 text-sm leading-7 text-slate-600">
-                  Kiamina Accounting Services focuses on oil and gas servicing,
-                  real estate, ICT, construction, nonprofits, and other
-                  service-based organisations.
-                </p>
-              </div>
             </div>
+          </div>
 
-            <div className="grid gap-5">
-              {industries.map((item) => (
-                <div
-                  key={item.industry}
-                  className="rounded-[1.5rem] border border-[#D9E3F4] bg-white p-6 shadow-sm"
-                >
-                  <div className="text-lg font-semibold text-slate-950">
-                    {item.industry}
-                  </div>
+          <div className="mt-8 overflow-hidden rounded-[1.5rem] border border-[#D9E3F4]">
+            <table className="min-w-full divide-y divide-[#D9E3F4]">
+              <thead className="bg-[#F8FAFC]">
+                <tr>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Modular Service
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Subscription / Billing Structure
+                  </th>
+                </tr>
+              </thead>
 
-                  <p className="mt-3 text-sm leading-7 text-slate-600">
-                    {item.focus}
-                  </p>
-                </div>
-              ))}
-            </div>
+              <tbody className="divide-y divide-[#D9E3F4] bg-white">
+                <tr>
+                  <td className="px-6 py-5 text-sm font-semibold text-slate-950">
+                    Standalone Payroll Processing
+                  </td>
+                  <td className="px-6 py-5 text-sm leading-7 text-slate-600">
+                    {pricing.payroll}. Suitable where the client only needs
+                    payroll, payslips, PAYE, pension, and statutory deduction
+                    support.
+                  </td>
+                </tr>
+
+                <tr>
+                  <td className="px-6 py-5 text-sm font-semibold text-slate-950">
+                    Standalone Tax Compliance
+                  </td>
+                  <td className="px-6 py-5 text-sm leading-7 text-slate-600">
+                    {pricing.tax}. Covers local statutory filings, tax tracking,
+                    and tax authority correspondence support.
+                  </td>
+                </tr>
+
+                <tr>
+                  <td className="px-6 py-5 text-sm font-semibold text-slate-950">
+                    Financial Modelling
+                  </td>
+                  <td className="px-6 py-5 text-sm leading-7 text-slate-600">
+                    {pricing.modelling}. Suitable for fundraising, project
+                    finance, expansion planning, scenario analysis, and quarterly
+                    model updates.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
 
-      <section className="bg-[#F8FAFC] px-6 py-20 lg:px-8">
-        <div className="mx-auto max-w-4xl text-center">
-          <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
-            Request a Quote
+      <section className="mx-auto max-w-7xl px-6 pb-20 lg:px-8">
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
+            <CreditCard className="h-7 w-7 text-[#073D7F]" />
+            <h3 className="mt-5 text-xl font-semibold text-slate-950">
+              Upfront payment collection
+            </h3>
+            <p className="mt-3 text-sm leading-7 text-slate-600">
+              Clients pay through {pricing.paymentRail}. Nigerian clients may
+              use Paystack recurring billing where available; international
+              clients can pay by supported international cards.
+            </p>
           </div>
 
-          <h2 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950">
-            Request pricing based on your actual accounting needs.
-          </h2>
+          <div className="rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
+            <ReceiptText className="h-7 w-7 text-[#073D7F]" />
+            <h3 className="mt-5 text-xl font-semibold text-slate-950">
+              Scope boundaries
+            </h3>
+            <p className="mt-3 text-sm leading-7 text-slate-600">
+              Engagement letters define limits for transactions, employees,
+              invoices, reporting frequency, and response times. If volumes
+              exceed agreed limits for two consecutive months, the subscription
+              scales to the next level.
+            </p>
+          </div>
 
-          <p className="mt-5 text-base leading-8 text-slate-600">
-            Share your jurisdiction, industry, service requirements, reporting
-            frequency, payroll size, documentation status, and compliance needs.
-            We will recommend the appropriate scope and pricing structure.
+          <div className="rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
+            <FileSpreadsheet className="h-7 w-7 text-[#073D7F]" />
+            <h3 className="mt-5 text-xl font-semibold text-slate-950">
+              Setup and catch-up fee
+            </h3>
+            <p className="mt-3 text-sm leading-7 text-slate-600">
+              Where prior books are incomplete or disorganised, a one-time setup
+              and catch-up fee is charged before the monthly subscription starts.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-10 rounded-[2rem] bg-[#073D7F] p-8 text-white lg:p-10">
+          <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+            <div>
+              <div className="text-sm font-semibold uppercase tracking-[0.24em] text-white/60">
+                Start with the right finance tier
+              </div>
+
+              <h2 className="mt-4 text-3xl font-semibold tracking-tight">
+                Build a finance operating system that grows with your company.
+              </h2>
+
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-white/75">
+                Kiamina can begin with core compliance, expand into integrated
+                finance operations, and support strategic CFO decisions as your
+                business grows.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row lg:justify-end">
+              <a
+                href="/get-started"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-[#073D7F]"
+              >
+                Get Started
+                <ArrowRight className="h-4 w-4" />
+              </a>
+
+              <a
+                href="/contact"
+                className="inline-flex items-center justify-center rounded-full border border-white/30 px-6 py-3 text-sm font-semibold text-white"
+              >
+                Talk to Us
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 flex items-start gap-3 rounded-[1.5rem] border border-[#D9E3F4] bg-white p-5 text-sm leading-7 text-slate-500">
+          <BarChart3 className="mt-1 h-5 w-5 flex-none text-[#073D7F]" />
+          <p>
+            Pricing shown is indicative and may vary based on transaction
+            volume, employee headcount, number of entities, reporting cadence,
+            catch-up work, industry complexity, statutory requirements, and
+            scope boundaries agreed in the engagement letter.
           </p>
-
-          <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
-            <Link
-              href="/contact"
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-[#073D7F] px-6 py-3 text-sm font-semibold text-white"
-            >
-              Request Pricing
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-
-            <Link
-              href="/get-started"
-              className="inline-flex items-center justify-center rounded-full border border-[#D9E3F4] bg-white px-6 py-3 text-sm font-semibold text-[#073D7F]"
-            >
-              Get Started
-            </Link>
-          </div>
         </div>
       </section>
     </main>
