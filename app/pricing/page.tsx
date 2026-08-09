@@ -16,16 +16,70 @@ import {
   WalletCards,
 } from "lucide-react";
 
-type JurisdictionKey = "NG" | "US" | "UK" | "CA" | "EU" | "AU";
+type JurisdictionKey = "NG" | "US" | "UK_IE" | "CA" | "EU" | "AU";
 
 const jurisdictionLabels: Record<JurisdictionKey, string> = {
   NG: "Nigeria",
   US: "United States",
-  UK: "United Kingdom",
+  UK_IE: "United Kingdom and Ireland",
   CA: "Canada",
   EU: "Europe",
   AU: "Australia",
 };
+
+function normalizeJurisdiction(value?: string | null): JurisdictionKey {
+  const rawValue = String(value || "").trim();
+  const upperValue = rawValue.toUpperCase();
+
+  if (upperValue === "NG" || upperValue === "NIGERIA") {
+    return "NG";
+  }
+
+  if (
+    upperValue === "US" ||
+    upperValue === "USA" ||
+    upperValue === "UNITED STATES" ||
+    upperValue === "UNITED STATES OF AMERICA"
+  ) {
+    return "US";
+  }
+
+  if (
+    upperValue === "UK" ||
+    upperValue === "GB" ||
+    upperValue === "GBR" ||
+    upperValue === "UNITED KINGDOM" ||
+    upperValue === "IRELAND" ||
+    upperValue === "IE" ||
+    upperValue === "IRL" ||
+    upperValue === "UK_IE" ||
+    upperValue === "UK-IE" ||
+    upperValue === "GB_IE" ||
+    upperValue === "GB-IE" ||
+    upperValue === "UNITED KINGDOM AND IRELAND"
+  ) {
+    return "UK_IE";
+  }
+
+  if (upperValue === "CA" || upperValue === "CANADA") {
+    return "CA";
+  }
+
+  if (
+    upperValue === "EU" ||
+    upperValue === "EUR" ||
+    upperValue === "EUROPE" ||
+    upperValue === "EUROPEAN UNION"
+  ) {
+    return "EU";
+  }
+
+  if (upperValue === "AU" || upperValue === "AUS" || upperValue === "AUSTRALIA") {
+    return "AU";
+  }
+
+  return "NG";
+}
 
 const pricingByJurisdiction: Record<
   JurisdictionKey,
@@ -60,7 +114,7 @@ const pricingByJurisdiction: Record<
     modelling: "Fixed project fee or monthly update retainer",
     paymentRail: "Paystack international card payment",
   },
-  UK: {
+  UK_IE: {
     currency: "GBP",
     tier1: "£350–£600 / month",
     tier2: "£750–£1,200 / month",
@@ -136,7 +190,8 @@ const tiers = [
       "Vendor scheduling, invoicing, donor receivable tracking, and cash cycle support",
     ],
     priceKey: "tier2" as const,
-    volumeBasis: "Based on employee headcount, invoice volume, reporting cadence, and operational complexity.",
+    volumeBasis:
+      "Based on employee headcount, invoice volume, reporting cadence, and operational complexity.",
     bestFor:
       "Growing businesses, NGOs, schools, churches, clinics, professional firms, and mission-driven organisations that need a managed finance function without building a full internal team.",
   },
@@ -185,23 +240,23 @@ export default function PricingPage() {
   useEffect(() => {
     const stored = window.localStorage.getItem("kiamina_jurisdiction");
 
-    if (
-      stored === "NG" ||
-      stored === "US" ||
-      stored === "UK" ||
-      stored === "CA" ||
-      stored === "EU" ||
-      stored === "AU"
-    ) {
-      setJurisdiction(stored);
-    }
+    setJurisdiction(normalizeJurisdiction(stored));
 
     function handleJurisdictionChange(event: Event) {
-      const customEvent = event as CustomEvent<{ jurisdiction?: JurisdictionKey }>;
+      const customEvent = event as CustomEvent<{
+        jurisdiction?: string;
+        country?: string;
+        region?: string;
+        value?: string;
+      }>;
 
-      if (customEvent.detail?.jurisdiction) {
-        setJurisdiction(customEvent.detail.jurisdiction);
-      }
+      const incomingJurisdiction =
+        customEvent.detail?.jurisdiction ||
+        customEvent.detail?.country ||
+        customEvent.detail?.region ||
+        customEvent.detail?.value;
+
+      setJurisdiction(normalizeJurisdiction(incomingJurisdiction));
     }
 
     window.addEventListener(
