@@ -250,9 +250,12 @@ export default function PricingPage() {
   const [jurisdiction, setJurisdiction] = useState<JurisdictionKey>("NG");
 
   useEffect(() => {
-    const stored = window.localStorage.getItem("kiamina_jurisdiction");
+    function syncJurisdictionFromStorage() {
+      const stored = window.localStorage.getItem("kiamina_jurisdiction");
+      setJurisdiction(normalizeJurisdiction(stored));
+    }
 
-    setJurisdiction(normalizeJurisdiction(stored));
+    syncJurisdictionFromStorage();
 
     function handleJurisdictionChange(event: Event) {
       const customEvent = event as CustomEvent<{
@@ -268,18 +271,38 @@ export default function PricingPage() {
         customEvent.detail?.region ||
         customEvent.detail?.value;
 
-      setJurisdiction(normalizeJurisdiction(incomingJurisdiction));
+      if (incomingJurisdiction) {
+        setJurisdiction(normalizeJurisdiction(incomingJurisdiction));
+        return;
+      }
+
+      syncJurisdictionFromStorage();
+    }
+
+    function handleStorageChange(event: StorageEvent) {
+      if (event.key === "kiamina_jurisdiction") {
+        setJurisdiction(normalizeJurisdiction(event.newValue));
+      }
     }
 
     window.addEventListener(
       "kiamina-jurisdiction-change",
       handleJurisdictionChange
     );
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("focus", syncJurisdictionFromStorage);
+    document.addEventListener("visibilitychange", syncJurisdictionFromStorage);
 
     return () => {
       window.removeEventListener(
         "kiamina-jurisdiction-change",
         handleJurisdictionChange
+      );
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("focus", syncJurisdictionFromStorage);
+      document.removeEventListener(
+        "visibilitychange",
+        syncJurisdictionFromStorage
       );
     };
   }, []);
