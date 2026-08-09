@@ -16,12 +16,13 @@ import {
   WalletCards,
 } from "lucide-react";
 
-type JurisdictionKey = "NG" | "US" | "UK_IE" | "CA" | "EU" | "AU";
+type JurisdictionKey = "NG" | "US" | "UK" | "IE" | "CA" | "EU" | "AU";
 
 const jurisdictionLabels: Record<JurisdictionKey, string> = {
   NG: "Nigeria",
   US: "United States",
-  UK_IE: "United Kingdom and Ireland",
+  UK: "United Kingdom",
+  IE: "Ireland",
   CA: "Canada",
   EU: "Europe",
   AU: "Australia",
@@ -48,17 +49,18 @@ function normalizeJurisdiction(value?: string | null): JurisdictionKey {
     upperValue === "UK" ||
     upperValue === "GB" ||
     upperValue === "GBR" ||
-    upperValue === "UNITED KINGDOM" ||
-    upperValue === "IRELAND" ||
+    upperValue === "UNITED KINGDOM"
+  ) {
+    return "UK";
+  }
+
+  if (
     upperValue === "IE" ||
     upperValue === "IRL" ||
-    upperValue === "UK_IE" ||
-    upperValue === "UK-IE" ||
-    upperValue === "GB_IE" ||
-    upperValue === "GB-IE" ||
-    upperValue === "UNITED KINGDOM AND IRELAND"
+    upperValue === "IRELAND" ||
+    upperValue === "REPUBLIC OF IRELAND"
   ) {
-    return "UK_IE";
+    return "IE";
   }
 
   if (upperValue === "CA" || upperValue === "CANADA") {
@@ -114,11 +116,21 @@ const pricingByJurisdiction: Record<
     modelling: "Fixed project fee or monthly update retainer",
     paymentRail: "Paystack international card payment",
   },
-  UK_IE: {
+  UK: {
     currency: "GBP",
     tier1: "£350–£600 / month",
     tier2: "£750–£1,200 / month",
     tier3: "£2,000+ / month",
+    payroll: "Base fee + per-employee charge",
+    tax: "Monthly compliance retainer",
+    modelling: "Fixed project fee or monthly update retainer",
+    paymentRail: "Paystack international card payment",
+  },
+  IE: {
+    currency: "EUR",
+    tier1: "€400–€650 / month",
+    tier2: "€850–€1,350 / month",
+    tier3: "€2,300+ / month",
     payroll: "Base fee + per-employee charge",
     tax: "Monthly compliance retainer",
     modelling: "Fixed project fee or monthly update retainer",
