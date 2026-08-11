@@ -290,13 +290,15 @@ export default function BankLineInlineActions({
 
   if (isLocked) {
     return (
-      <div className="space-y-2 text-right">
+      <div className="min-w-[280px] space-y-3 text-right">
         <a
           href={`/portal/organisations/${organisationId}/banking/${bankAccountId}/lines/${line.id}`}
           className="inline-flex rounded-full border border-[#D9E3F4] bg-white px-4 py-2 text-xs font-semibold text-[#073D7F]"
         >
           Details
         </a>
+
+        <BankLineAllocationHistory allocations={allocationHistory} />
       </div>
     );
   }
@@ -337,6 +339,8 @@ export default function BankLineInlineActions({
           </div>
         </div>
       </div>
+
+      <BankLineAllocationHistory allocations={allocationHistory} />
 
       <select
         value={selectedKey}
@@ -403,8 +407,6 @@ export default function BankLineInlineActions({
           {excluding ? "Excluding..." : "Exclude"}
         </button>
       </div>
-
-<BankLineAllocationHistory allocations={allocationHistory} />
 
       {showAddForm ? (
         <AddBankLineToBooksForm

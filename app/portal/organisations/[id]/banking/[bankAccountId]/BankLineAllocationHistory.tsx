@@ -1,3 +1,5 @@
+"use client";
+
 type AllocationHistoryItem = {
   id: string;
   bank_statement_line_id: string;
@@ -74,8 +76,9 @@ export default function BankLineAllocationHistory({
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <div className="text-xs font-semibold text-slate-950">
-                  {formatStatus(allocation.source_module) ||
-                    formatStatus(allocation.allocation_type)}
+                  {allocation.source_module
+                    ? formatStatus(allocation.source_module)
+                    : formatStatus(allocation.allocation_type)}
                 </div>
 
                 <div className="mt-1 text-xs leading-5 text-slate-500">
