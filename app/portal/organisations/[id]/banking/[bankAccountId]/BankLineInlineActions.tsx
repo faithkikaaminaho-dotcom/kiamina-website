@@ -52,6 +52,12 @@ type AllocationHistoryItem = {
   created_at: string | null;
 };
 
+type BankChargeTreatment =
+  | "NONE"
+  | "INCLUDED_IN_BANK_LINE"
+  | "EXCLUDED_FROM_BANK_LINE"
+  | "SEPARATE_BANK_LINE";
+
 function formatStatus(status?: string | null) {
   if (!status) return "—";
 
@@ -64,7 +70,6 @@ function formatStatus(status?: string | null) {
 
 function toNumber(value: unknown) {
   const numericValue = Number(value || 0);
-
   return Number.isFinite(numericValue) ? numericValue : 0;
 }
 
@@ -80,6 +85,54 @@ function formatMoney(currencyCode?: string | null, amount?: number | null) {
       maximumFractionDigits: 2,
     }
   )}`;
+}
+
+function getExpectedBankLineCoverage({
+  sourceAmount,
+  chargeAmount,
+  treatment,
+  isMoneyIn,
+}: {
+  sourceAmount: number;
+  chargeAmount: number;
+  treatment: BankChargeTreatment;
+  isMoneyIn: boolean;
+}) {
+  if (treatment !== "INCLUDED_IN_BANK_LINE") {
+    return sourceAmount;
+  }
+
+  if (isMoneyIn) {
+    return roundMoney(sourceAmount - chargeAmount);
+  }
+
+  return roundMoney(sourceAmount + chargeAmount);
+}
+
+function getRecommendedSourceMatchAmount({
+  candidateAmount,
+  bankLineAmount,
+  chargeAmount,
+  treatment,
+  isMoneyIn,
+}: {
+  candidateAmount: number;
+  bankLineAmount: number;
+  chargeAmount: number;
+  treatment: BankChargeTreatment;
+  isMoneyIn: boolean;
+}) {
+  if (treatment === "INCLUDED_IN_BANK_LINE") {
+    const expectedSourceAmount = isMoneyIn
+      ? roundMoney(bankLineAmount + chargeAmount)
+      : roundMoney(Math.max(bankLineAmount - chargeAmount, 0));
+
+    if (expectedSourceAmount > 0) {
+      return roundMoney(Math.min(candidateAmount, expectedSourceAmount));
+    }
+  }
+
+  return roundMoney(Math.min(candidateAmount, bankLineAmount));
 }
 
 export default function BankLineInlineActions({
@@ -131,6 +184,23 @@ export default function BankLineInlineActions({
     "EXCLUDED",
   ].includes(line.reconciliation_status || "");
 
+  const bankChargeAccounts = useMemo(() => {
+    const preferredAccounts = expenseAccounts.filter((account) => {
+      const label = account.label.toLowerCase();
+
+      return (
+        label.includes("bank charge") ||
+        label.includes("bank charges") ||
+        label.includes("bank fee") ||
+        label.includes("bank fees") ||
+        label.includes("charges") ||
+        label.includes("fees")
+      );
+    });
+
+    return preferredAccounts.length > 0 ? preferredAccounts : expenseAccounts;
+  }, [expenseAccounts]);
+
   const likelyCandidates = useMemo(() => {
     return candidates
       .filter((candidate) => {
@@ -173,10 +243,15 @@ export default function BankLineInlineActions({
       });
   }, [bankLineAmount, candidates, isMoneyIn, unallocatedAmount]);
 
+  const [isExpanded, setIsExpanded] = useState(false);
   const [selectedKey, setSelectedKey] = useState("");
   const [matchedAmount, setMatchedAmount] = useState(
     unallocatedAmount > 0 ? String(unallocatedAmount) : String(bankLineAmount)
   );
+  const [bankChargeTreatment, setBankChargeTreatment] =
+    useState<BankChargeTreatment>("NONE");
+  const [bankChargeAmount, setBankChargeAmount] = useState("0");
+  const [bankChargeGlAccountId, setBankChargeGlAccountId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [excluding, setExcluding] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -187,6 +262,77 @@ export default function BankLineInlineActions({
     return key === selectedKey;
   });
 
+  const shouldShowBankChargeFields = bankChargeTreatment !== "NONE";
+  const currentChargeAmount = roundMoney(toNumber(bankChargeAmount));
+  const currentSourceAmount = roundMoney(toNumber(matchedAmount));
+
+  const expectedBankLineCoverage = getExpectedBankLineCoverage({
+    sourceAmount: currentSourceAmount,
+    chargeAmount: currentChargeAmount,
+    treatment: bankChargeTreatment,
+    isMoneyIn,
+  });
+
+  function updateSelectedCandidate(nextKey: string) {
+    setSelectedKey(nextKey);
+
+    const nextCandidate = likelyCandidates.find((candidate) => {
+      const key = `${candidate.source_module}:${candidate.source_record_id}`;
+      return key === nextKey;
+    });
+
+    if (!nextCandidate) return;
+
+    const recommendedAmount = getRecommendedSourceMatchAmount({
+      candidateAmount: roundMoney(toNumber(nextCandidate.amount)),
+      bankLineAmount: unallocatedAmount,
+      chargeAmount: currentChargeAmount,
+      treatment: bankChargeTreatment,
+      isMoneyIn,
+    });
+
+    setMatchedAmount(String(recommendedAmount));
+  }
+
+  function updateBankChargeTreatment(nextTreatment: BankChargeTreatment) {
+    setBankChargeTreatment(nextTreatment);
+
+    if (nextTreatment === "NONE") {
+      setBankChargeAmount("0");
+      setBankChargeGlAccountId("");
+    }
+
+    if (selectedCandidate) {
+      const recommendedAmount = getRecommendedSourceMatchAmount({
+        candidateAmount: roundMoney(toNumber(selectedCandidate.amount)),
+        bankLineAmount: unallocatedAmount,
+        chargeAmount: nextTreatment === "NONE" ? 0 : currentChargeAmount,
+        treatment: nextTreatment,
+        isMoneyIn,
+      });
+
+      setMatchedAmount(String(recommendedAmount));
+    }
+  }
+
+  function updateBankChargeAmount(nextAmount: string) {
+    setBankChargeAmount(nextAmount);
+
+    const nextChargeAmount = roundMoney(toNumber(nextAmount));
+
+    if (selectedCandidate) {
+      const recommendedAmount = getRecommendedSourceMatchAmount({
+        candidateAmount: roundMoney(toNumber(selectedCandidate.amount)),
+        bankLineAmount: unallocatedAmount,
+        chargeAmount: nextChargeAmount,
+        treatment: bankChargeTreatment,
+        isMoneyIn,
+      });
+
+      setMatchedAmount(String(recommendedAmount));
+    }
+  }
+
   async function handleMatch() {
     setSubmitting(true);
     setErrorMessage("");
@@ -196,15 +342,56 @@ export default function BankLineInlineActions({
         throw new Error("Select a transaction to match.");
       }
 
-      const amount = roundMoney(toNumber(matchedAmount));
+      const sourceAmount = roundMoney(toNumber(matchedAmount));
+      const chargeAmount = roundMoney(toNumber(bankChargeAmount));
 
-      if (amount <= 0) {
-        throw new Error("Enter an amount greater than zero.");
+      if (sourceAmount <= 0) {
+        throw new Error("Enter a source transaction amount greater than zero.");
       }
 
-      if (amount > unallocatedAmount) {
+      if (sourceAmount > toNumber(selectedCandidate.amount)) {
         throw new Error(
-          `Amount cannot exceed the unallocated bank line amount of ${formatMoney(
+          `Source transaction amount cannot exceed the unallocated source transaction amount of ${formatMoney(
+            selectedCandidate.currency_code,
+            selectedCandidate.amount
+          )}.`
+        );
+      }
+
+      if (bankChargeTreatment === "NONE" && chargeAmount > 0) {
+        throw new Error(
+          "Select a bank charge treatment or clear the bank charge amount."
+        );
+      }
+
+      if (bankChargeTreatment !== "NONE" && chargeAmount <= 0) {
+        throw new Error("Enter a bank charge amount greater than zero.");
+      }
+
+      if (bankChargeTreatment !== "NONE" && !bankChargeGlAccountId) {
+        throw new Error("Select the Bank Charges GL account.");
+      }
+
+      if (chargeAmount < 0) {
+        throw new Error("Bank charge amount cannot be negative.");
+      }
+
+      const bankLineCoverage = getExpectedBankLineCoverage({
+        sourceAmount,
+        chargeAmount,
+        treatment: bankChargeTreatment,
+        isMoneyIn,
+      });
+
+      if (bankLineCoverage <= 0) {
+        throw new Error(
+          "The bank charge is too high for this source transaction amount."
+        );
+      }
+
+      if (bankLineCoverage > unallocatedAmount) {
+        throw new Error(
+          `The amount covered on the bank line cannot exceed the remaining bank line amount of ${formatMoney(
             line.currency_code,
             unallocatedAmount
           )}.`
@@ -221,11 +408,16 @@ export default function BankLineInlineActions({
           body: JSON.stringify({
             source_module: selectedCandidate.source_module,
             source_record_id: selectedCandidate.source_record_id,
-            matched_amount: amount,
-            match_note: "Matched inline from banking feed.",
-            bank_charge_treatment: "NONE",
-            bank_charge_amount: 0,
-            bank_charge_gl_account_id: null,
+            matched_amount: sourceAmount,
+            match_note:
+              bankChargeTreatment === "INCLUDED_IN_BANK_LINE"
+                ? "Matched inline from banking feed with bank charge included in bank line."
+                : "Matched inline from banking feed.",
+            bank_charge_treatment: bankChargeTreatment,
+            bank_charge_amount:
+              bankChargeTreatment === "NONE" ? 0 : chargeAmount,
+            bank_charge_gl_account_id:
+              bankChargeTreatment === "NONE" ? null : bankChargeGlAccountId,
           }),
         }
       );
@@ -238,6 +430,10 @@ export default function BankLineInlineActions({
 
       setSelectedKey("");
       setMatchedAmount("0");
+      setBankChargeTreatment("NONE");
+      setBankChargeAmount("0");
+      setBankChargeGlAccountId("");
+      setIsExpanded(false);
       router.refresh();
     } catch (error) {
       setErrorMessage(
@@ -278,6 +474,7 @@ export default function BankLineInlineActions({
         throw new Error(result.error || "Unable to exclude bank line.");
       }
 
+      setIsExpanded(false);
       router.refresh();
     } catch (error) {
       setErrorMessage(
@@ -288,107 +485,15 @@ export default function BankLineInlineActions({
     }
   }
 
-  if (isLocked) {
-    return (
-      <div className="min-w-[280px] space-y-3 text-right">
-        <a
-          href={`/portal/organisations/${organisationId}/banking/${bankAccountId}/lines/${line.id}`}
-          className="inline-flex rounded-full border border-[#D9E3F4] bg-white px-4 py-2 text-xs font-semibold text-[#073D7F]"
-        >
-          Details
-        </a>
-
-        <BankLineAllocationHistory allocations={allocationHistory} />
-      </div>
-    );
-  }
-
   return (
-    <div className="min-w-[420px] space-y-3 text-right">
-      {errorMessage ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-left text-xs leading-5 text-red-700">
-          {errorMessage}
-        </div>
-      ) : null}
-
-      <div className="grid gap-2 rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] p-3 text-left text-xs text-slate-600 sm:grid-cols-3">
-        <div>
-          <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400">
-            Bank line
-          </div>
-          <div className="mt-1 font-semibold text-slate-950">
-            {formatMoney(line.currency_code, bankLineAmount)}
-          </div>
-        </div>
-
-        <div>
-          <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400">
-            Allocated
-          </div>
-          <div className="mt-1 font-semibold text-slate-950">
-            {formatMoney(line.currency_code, allocatedAmount)}
-          </div>
-        </div>
-
-        <div>
-          <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400">
-            Remaining
-          </div>
-          <div className="mt-1 font-semibold text-slate-950">
-            {formatMoney(line.currency_code, unallocatedAmount)}
-          </div>
-        </div>
-      </div>
-
-      <BankLineAllocationHistory allocations={allocationHistory} />
-
-      <select
-        value={selectedKey}
-        onChange={(event) => setSelectedKey(event.target.value)}
-        className="w-full rounded-2xl border border-[#D9E3F4] px-3 py-2 text-xs outline-none focus:border-[#073D7F]"
-      >
-        <option value="">Select match</option>
-        {likelyCandidates.map((candidate) => {
-          const key = `${candidate.source_module}:${candidate.source_record_id}`;
-          const amountText = formatMoney(candidate.currency_code, candidate.amount);
-
-          return (
-            <option key={key} value={key}>
-              {formatStatus(candidate.source_module)} · {candidate.label} ·{" "}
-              {amountText}
-            </option>
-          );
-        })}
-      </select>
-
-      <input
-        type="number"
-        step="0.01"
-        min="0"
-        max={unallocatedAmount}
-        value={matchedAmount}
-        onChange={(event) => setMatchedAmount(event.target.value)}
-        className="w-full rounded-2xl border border-[#D9E3F4] px-3 py-2 text-xs outline-none focus:border-[#073D7F]"
-        placeholder="Amount to match"
-      />
-
+    <div className="min-w-[220px] text-right">
       <div className="flex flex-wrap justify-end gap-2">
         <button
           type="button"
-          onClick={handleMatch}
-          disabled={submitting || !selectedCandidate || unallocatedAmount <= 0}
-          className="rounded-full bg-[#073D7F] px-4 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+          onClick={() => setIsExpanded((current) => !current)}
+          className="rounded-full bg-[#073D7F] px-4 py-2 text-xs font-semibold text-white"
         >
-          {submitting ? "Matching..." : "Match"}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setShowAddForm((current) => !current)}
-          disabled={unallocatedAmount <= 0}
-          className="rounded-full border border-[#D9E3F4] bg-white px-4 py-2 text-xs font-semibold text-[#073D7F] disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {showAddForm ? "Close Add" : "Add"}
+          {isExpanded ? "Close" : "Open"}
         </button>
 
         <a
@@ -397,27 +502,224 @@ export default function BankLineInlineActions({
         >
           Details
         </a>
-
-        <button
-          type="button"
-          onClick={handleExclude}
-          disabled={excluding || allocatedAmount > 0}
-          className="rounded-full border border-[#D9E3F4] bg-white px-4 py-2 text-xs font-semibold text-slate-600 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {excluding ? "Excluding..." : "Exclude"}
-        </button>
       </div>
 
-      {showAddForm ? (
-        <AddBankLineToBooksForm
-          line={line}
-          customers={customers}
-          suppliers={suppliers}
-          investors={investors}
-          incomeAccounts={incomeAccounts}
-          expenseAccounts={expenseAccounts}
-        />
-      ) : null}
+      {!isExpanded ? null : (
+        <div className="mt-4 min-w-[520px] space-y-3 text-right">
+          {errorMessage ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-left text-xs leading-5 text-red-700">
+              {errorMessage}
+            </div>
+          ) : null}
+
+          <div className="grid gap-2 rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] p-3 text-left text-xs text-slate-600 sm:grid-cols-3">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400">
+                Bank line
+              </div>
+              <div className="mt-1 font-semibold text-slate-950">
+                {formatMoney(line.currency_code, bankLineAmount)}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400">
+                Allocated
+              </div>
+              <div className="mt-1 font-semibold text-slate-950">
+                {formatMoney(line.currency_code, allocatedAmount)}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400">
+                Remaining
+              </div>
+              <div className="mt-1 font-semibold text-slate-950">
+                {formatMoney(line.currency_code, unallocatedAmount)}
+              </div>
+            </div>
+          </div>
+
+          <BankLineAllocationHistory allocations={allocationHistory} />
+
+          {isLocked ? (
+            <div className="rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] px-4 py-3 text-left text-xs leading-6 text-slate-600">
+              This bank line is {formatStatus(line.reconciliation_status)}. Open
+              the details page for the full audit trail.
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-2 lg:grid-cols-[1fr_180px]">
+                <select
+                  value={selectedKey}
+                  onChange={(event) =>
+                    updateSelectedCandidate(event.target.value)
+                  }
+                  className="w-full rounded-2xl border border-[#D9E3F4] px-3 py-2 text-xs outline-none focus:border-[#073D7F]"
+                >
+                  <option value="">Select match</option>
+                  {likelyCandidates.map((candidate) => {
+                    const key = `${candidate.source_module}:${candidate.source_record_id}`;
+                    const amountText = formatMoney(
+                      candidate.currency_code,
+                      candidate.amount
+                    );
+
+                    return (
+                      <option key={key} value={key}>
+                        {formatStatus(candidate.source_module)} ·{" "}
+                        {candidate.label} · {amountText}
+                      </option>
+                    );
+                  })}
+                </select>
+
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={matchedAmount}
+                  onChange={(event) => setMatchedAmount(event.target.value)}
+                  className="w-full rounded-2xl border border-[#D9E3F4] px-3 py-2 text-xs outline-none focus:border-[#073D7F]"
+                  placeholder="Source amount"
+                />
+              </div>
+
+              <div className="rounded-2xl border border-[#D9E3F4] bg-white p-3 text-left">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6491DE]">
+                  Bank Charge Treatment
+                </div>
+
+                <select
+                  value={bankChargeTreatment}
+                  onChange={(event) =>
+                    updateBankChargeTreatment(
+                      event.target.value as BankChargeTreatment
+                    )
+                  }
+                  className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-3 py-2 text-xs outline-none focus:border-[#073D7F]"
+                >
+                  <option value="NONE">No bank charge</option>
+                  <option value="INCLUDED_IN_BANK_LINE">
+                    Bank charge included in bank line
+                  </option>
+                  <option value="EXCLUDED_FROM_BANK_LINE">
+                    Bank charge excluded / separate from bank line
+                  </option>
+                  <option value="SEPARATE_BANK_LINE">
+                    Separate bank charge line
+                  </option>
+                </select>
+
+                {shouldShowBankChargeFields ? (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={bankChargeAmount}
+                      onChange={(event) =>
+                        updateBankChargeAmount(event.target.value)
+                      }
+                      className="w-full rounded-2xl border border-[#D9E3F4] px-3 py-2 text-xs outline-none focus:border-[#073D7F]"
+                      placeholder="Bank charge amount"
+                    />
+
+                    <select
+                      value={bankChargeGlAccountId}
+                      onChange={(event) =>
+                        setBankChargeGlAccountId(event.target.value)
+                      }
+                      className="w-full rounded-2xl border border-[#D9E3F4] px-3 py-2 text-xs outline-none focus:border-[#073D7F]"
+                    >
+                      <option value="">
+                        Select Bank Charges GL account
+                      </option>
+                      {bankChargeAccounts.map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
+
+                {shouldShowBankChargeFields ? (
+                  <div className="mt-3 rounded-xl bg-[#F8FAFC] px-3 py-2 text-[11px] leading-5 text-slate-600">
+                    <div>
+                      Source transaction amount:{" "}
+                      <span className="font-semibold">
+                        {formatMoney(
+                          selectedCandidate?.currency_code || line.currency_code,
+                          currentSourceAmount
+                        )}
+                      </span>
+                    </div>
+                    <div>
+                      Bank charge amount:{" "}
+                      <span className="font-semibold">
+                        {formatMoney(line.currency_code, currentChargeAmount)}
+                      </span>
+                    </div>
+                    <div>
+                      Expected bank line coverage:{" "}
+                      <span className="font-semibold">
+                        {formatMoney(
+                          line.currency_code,
+                          expectedBankLineCoverage
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="flex flex-wrap justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={handleMatch}
+                  disabled={
+                    submitting || !selectedCandidate || unallocatedAmount <= 0
+                  }
+                  className="rounded-full bg-[#073D7F] px-4 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {submitting ? "Matching..." : "Match"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowAddForm((current) => !current)}
+                  disabled={unallocatedAmount <= 0}
+                  className="rounded-full border border-[#D9E3F4] bg-white px-4 py-2 text-xs font-semibold text-[#073D7F] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {showAddForm ? "Close Add" : "Add"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExclude}
+                  disabled={excluding || allocatedAmount > 0}
+                  className="rounded-full border border-[#D9E3F4] bg-white px-4 py-2 text-xs font-semibold text-slate-600 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {excluding ? "Excluding..." : "Exclude"}
+                </button>
+              </div>
+
+              {showAddForm ? (
+                <AddBankLineToBooksForm
+                  line={line}
+                  customers={customers}
+                  suppliers={suppliers}
+                  investors={investors}
+                  incomeAccounts={incomeAccounts}
+                  expenseAccounts={expenseAccounts}
+                />
+              ) : null}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
