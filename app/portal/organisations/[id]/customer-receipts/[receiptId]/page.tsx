@@ -8,6 +8,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/server";
+import BankingReconciliationContextPanel from "../../components/BankingReconciliationContextPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,8 @@ const internalRoles = [
   "COMPLIANCE_ADMIN",
   "OPERATIONS_ADMIN",
 ];
+
+const editableStatuses = ["DRAFT", "READY_FOR_REVIEW", "REVIEWED", "UNDER_REVIEW"];
 
 type AnyRecord = Record<string, any>;
 
@@ -114,6 +117,19 @@ export default async function CustomerReceiptDetailPage({
   if (!receipt) {
     redirect(`/portal/organisations/${id}/customer-receipts`);
   }
+
+  const { data: existingLedgerEntry } = await supabase
+    .from("general_ledger_entries")
+    .select("id")
+    .eq("organisation_id", id)
+    .eq("source_module", "CUSTOMER_RECEIPT")
+    .eq("source_record_id", receiptId)
+    .maybeSingle();
+
+  const canEditReceipt =
+    editableStatuses.includes(receipt.status || "") &&
+    !receipt.posted_at &&
+    !existingLedgerEntry;
 
   const { data: customer } = await supabase
     .from("customers")
@@ -212,6 +228,17 @@ export default async function CustomerReceiptDetailPage({
                     Receipt Date: {formatDate(receipt.receipt_date)}
                   </span>
                 </div>
+
+                {canEditReceipt ? (
+                  <div className="mt-6">
+                    <a
+                      href={`/portal/organisations/${organisation.id}/customer-receipts/${receipt.id}/edit`}
+                      className="inline-flex rounded-full bg-[#073D7F] px-5 py-3 text-sm font-semibold text-white"
+                    >
+                      Edit Draft Receipt
+                    </a>
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -222,6 +249,15 @@ export default async function CustomerReceiptDetailPage({
               </div>
               <div className="mt-2">{customer?.email || "No email"}</div>
               <div className="mt-1">{customer?.phone || "No phone"}</div>
+
+              {canEditReceipt ? (
+                <a
+                  href={`/portal/organisations/${organisation.id}/customer-receipts/${receipt.id}/edit`}
+                  className="mt-4 inline-flex w-full justify-center rounded-full border border-[#D9E3F4] bg-white px-4 py-2 text-sm font-semibold text-[#073D7F]"
+                >
+                  Edit Draft Receipt
+                </a>
+              ) : null}
             </div>
           </div>
         </div>
@@ -265,6 +301,12 @@ export default async function CustomerReceiptDetailPage({
             </div>
           </div>
         </div>
+
+        <BankingReconciliationContextPanel
+          organisationId={organisation.id}
+          sourceModule="CUSTOMER_RECEIPT"
+          sourceRecordId={receipt.id}
+        />
 
         <div className="mt-8 grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">
           <section className="rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
@@ -491,13 +533,24 @@ export default async function CustomerReceiptDetailPage({
                 This customer receipt is currently an operational draft record.
                 It does not post to the general ledger, receivables ledger,
                 customer statement, bank reconciliation, tax reporting, or
-                management reporting until Kiamina adds posting, review,
-                approval, and audit trail controls.
+                management reporting until review, posting, and audit trail
+                controls are completed.
               </p>
 
-              <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#F1F1F1] px-4 py-2 text-sm font-semibold text-[#073D7F]">
-                <CheckCircle className="h-4 w-4" />
-                Ready for future review and posting workflow
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="inline-flex items-center gap-2 rounded-full bg-[#F1F1F1] px-4 py-2 text-sm font-semibold text-[#073D7F]">
+                  <CheckCircle className="h-4 w-4" />
+                  Ready for review and posting workflow
+                </div>
+
+                {canEditReceipt ? (
+                  <a
+                    href={`/portal/organisations/${organisation.id}/customer-receipts/${receipt.id}/edit`}
+                    className="inline-flex justify-center rounded-full bg-[#073D7F] px-5 py-2 text-sm font-semibold text-white"
+                  >
+                    Edit Draft Receipt
+                  </a>
+                ) : null}
               </div>
             </div>
           </div>

@@ -1,7 +1,7 @@
+import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
-import { reserveDocumentNumber } from "@/lib/numbering";
 
-export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const internalRoles = [
   "SUPER_ADMIN",
@@ -13,6 +13,8 @@ const internalRoles = [
   "COMPLIANCE_ADMIN",
   "OPERATIONS_ADMIN",
 ];
+
+const editableStatuses = ["DRAFT", "READY_FOR_REVIEW", "REVIEWED", "UNDER_REVIEW"];
 
 const allowedTransactionTypes = [
   "CAPITAL_CONTRIBUTION",
@@ -29,12 +31,9 @@ const allowedTransactionTypes = [
 ];
 
 function toNumber(value: unknown, fallback = 0) {
-  if (value === null || value === undefined || value === "") {
-    return fallback;
-  }
+  if (value === null || value === undefined || value === "") return fallback;
 
   const numericValue = Number(value);
-
   return Number.isFinite(numericValue) ? numericValue : fallback;
 }
 
@@ -60,8 +59,12 @@ function isOutflow(transactionType: string) {
   return transactionType === "LOAN_REPAYMENT" || transactionType === "INTEREST_PAYMENT";
 }
 
-export async function POST(request: Request) {
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ transactionId: string }> }
+) {
   try {
+    const { transactionId } = await params;
     const supabase = await createClient();
 
     const {
@@ -69,7 +72,7 @@ export async function POST(request: Request) {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return Response.json({ error: "Not authenticated." }, { status: 401 });
+      return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
     }
 
     const { data: profile } = await supabase
@@ -79,27 +82,70 @@ export async function POST(request: Request) {
       .single();
 
     if (!profile || !internalRoles.includes(profile.role)) {
-      return Response.json({ error: "Access denied." }, { status: 403 });
+      return NextResponse.json({ error: "Access denied." }, { status: 403 });
     }
 
     const body = await request.json();
 
     const organisationId = String(body.organisation_id || "").trim();
 
-    const investorId = body.investor_id
-      ? String(body.investor_id).trim()
-      : null;
+    if (!organisationId) {
+      return NextResponse.json(
+        { error: "Organisation is required." },
+        { status: 400 }
+      );
+    }
+
+    const { data: existingTransaction } = await supabase
+      .from("funding_transactions")
+      .select("*")
+      .eq("id", transactionId)
+      .eq("organisation_id", organisationId)
+      .single();
+
+    if (!existingTransaction) {
+      return NextResponse.json(
+        { error: "Funding transaction not found." },
+        { status: 404 }
+      );
+    }
+
+    if (
+      existingTransaction.status === "POSTED" ||
+      existingTransaction.posted_at ||
+      !editableStatuses.includes(existingTransaction.status || "")
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "This funding transaction cannot be edited because it is posted or no longer in an editable review status.",
+        },
+        { status: 409 }
+      );
+    }
+
+    const { data: existingLedgerEntry } = await supabase
+      .from("general_ledger_entries")
+      .select("id")
+      .eq("organisation_id", organisationId)
+      .eq("source_module", "FUNDING_TRANSACTION")
+      .eq("source_record_id", transactionId)
+      .maybeSingle();
+
+    if (existingLedgerEntry) {
+      return NextResponse.json(
+        {
+          error:
+            "This funding transaction cannot be edited because it already has a General Ledger entry.",
+        },
+        { status: 409 }
+      );
+    }
+
+    const investorId = body.investor_id ? String(body.investor_id).trim() : null;
 
     const capitalCallId = body.capital_call_id
       ? String(body.capital_call_id).trim()
-      : null;
-
-    const accountingPeriodId = body.accounting_period_id
-      ? String(body.accounting_period_id).trim()
-      : null;
-
-    const engagementId = body.engagement_id
-      ? String(body.engagement_id).trim()
       : null;
 
     const transactionDate = String(body.transaction_date || "").trim();
@@ -168,89 +214,48 @@ export async function POST(request: Request) {
       ? String(body.internal_notes).trim()
       : null;
 
-    if (!organisationId) {
-      return Response.json(
-        { error: "Organisation is required." },
-        { status: 400 }
-      );
-    }
-
     if (!transactionDate) {
-      return Response.json(
+      return NextResponse.json(
         { error: "Funding transaction date is required." },
         { status: 400 }
       );
     }
 
     if (!allowedTransactionTypes.includes(transactionType)) {
-      return Response.json(
+      return NextResponse.json(
         { error: "Invalid funding transaction type." },
         { status: 400 }
       );
     }
 
     if (amount <= 0) {
-      return Response.json(
+      return NextResponse.json(
         { error: "Amount must be greater than zero." },
         { status: 400 }
       );
     }
 
     if (bankCharges < 0) {
-      return Response.json(
+      return NextResponse.json(
         { error: "Bank charges cannot be negative." },
         { status: 400 }
       );
     }
 
-    const transactionNumber = await reserveDocumentNumber({
-      supabase,
-      organisationId,
-      documentType: "FUNDING_TRANSACTION",
-      providedNumber: body.transaction_number,
-    });
-
-    if (!transactionNumber) {
-      return Response.json(
-        { error: "Funding transaction number is required." },
-        { status: 400 }
-      );
-    }
-
-    const { data: organisation } = await supabase
-      .from("organisations")
-      .select("id, base_currency_code")
-      .eq("id", organisationId)
-      .single();
-
-    if (!organisation) {
-      return Response.json(
-        { error: "Organisation not found." },
-        { status: 404 }
-      );
-    }
-
-    let investorName: string | null = null;
-
     if (investorId) {
       const { data: investor } = await supabase
         .from("investors")
-        .select("id, investor_name")
+        .select("id")
         .eq("id", investorId)
         .eq("organisation_id", organisationId)
         .single();
 
       if (!investor) {
-        return Response.json(
-          {
-            error:
-              "Investor or funding provider not found for this organisation.",
-          },
+        return NextResponse.json(
+          { error: "Investor or funding provider not found for this organisation." },
           { status: 404 }
         );
       }
-
-      investorName = investor.investor_name;
     }
 
     if (capitalCallId) {
@@ -262,7 +267,7 @@ export async function POST(request: Request) {
         .single();
 
       if (!capitalCall) {
-        return Response.json(
+        return NextResponse.json(
           { error: "Capital call not found for this organisation." },
           { status: 404 }
         );
@@ -278,7 +283,7 @@ export async function POST(request: Request) {
         .single();
 
       if (!bankAccount) {
-        return Response.json(
+        return NextResponse.json(
           { error: "Bank account not found for this organisation." },
           { status: 404 }
         );
@@ -300,7 +305,7 @@ export async function POST(request: Request) {
         .in("id", chartAccountIds);
 
       if ((chartAccounts || []).length !== chartAccountIds.length) {
-        return Response.json(
+        return NextResponse.json(
           {
             error:
               "One or more selected GL accounts were not found for this organisation.",
@@ -310,50 +315,39 @@ export async function POST(request: Request) {
       }
     }
 
-    const { data: fundingTransaction, error: fundingTransactionError } =
-      await supabase
-        .from("funding_transactions")
-        .insert({
-          organisation_id: organisationId,
-          accounting_period_id: accountingPeriodId,
-          engagement_id: engagementId,
-          investor_id: investorId,
-          capital_call_id: capitalCallId,
-          transaction_number: transactionNumber,
-          transaction_date: transactionDate,
-          transaction_type: transactionType,
-          currency_code: currencyCode || organisation.base_currency_code,
-          exchange_rate: exchangeRate,
-          exchange_rate_date: exchangeRateDate || transactionDate,
-          exchange_rate_source: exchangeRateSource,
-          exchange_rate_is_locked: exchangeRateIsLocked,
-          amount,
-          bank_charges: bankCharges,
-          net_amount: netAmount,
-          payment_method: paymentMethod,
-          bank_account_id: bankAccountId,
-          equity_account_id: equityAccountId,
-          liability_account_id: liabilityAccountId,
-          income_account_id: incomeAccountId,
-          interest_expense_account_id: interestExpenseAccountId,
-          reference_number: referenceNumber,
-          purpose,
-          narration,
-          internal_notes: internalNotes,
-          status: "DRAFT",
-          created_by: user.id,
-          updated_by: user.id,
-        })
-        .select("id")
-        .single();
+    const { error: updateError } = await supabase
+      .from("funding_transactions")
+      .update({
+        investor_id: investorId,
+        capital_call_id: capitalCallId,
+        transaction_date: transactionDate,
+        transaction_type: transactionType,
+        currency_code: currencyCode || existingTransaction.currency_code,
+        exchange_rate: exchangeRate,
+        exchange_rate_date: exchangeRateDate || transactionDate,
+        exchange_rate_source: exchangeRateSource,
+        exchange_rate_is_locked: exchangeRateIsLocked,
+        amount,
+        bank_charges: bankCharges,
+        net_amount: netAmount,
+        payment_method: paymentMethod,
+        bank_account_id: bankAccountId,
+        equity_account_id: equityAccountId,
+        liability_account_id: liabilityAccountId,
+        income_account_id: incomeAccountId,
+        interest_expense_account_id: interestExpenseAccountId,
+        reference_number: referenceNumber,
+        purpose,
+        narration,
+        internal_notes: internalNotes,
+        updated_by: user.id,
+      })
+      .eq("id", transactionId)
+      .eq("organisation_id", organisationId);
 
-    if (fundingTransactionError || !fundingTransaction) {
-      return Response.json(
-        {
-          error:
-            fundingTransactionError?.message ||
-            "Unable to create funding transaction.",
-        },
+    if (updateError) {
+      return NextResponse.json(
+        { error: updateError.message || "Unable to update funding transaction." },
         { status: 500 }
       );
     }
@@ -362,44 +356,34 @@ export async function POST(request: Request) {
       await supabase.from("audit_logs").insert({
         user_id: user.id,
         organisation_id: organisationId,
-        engagement_id: engagementId,
-        action: "FUNDING_TRANSACTION_CREATED_DRAFT",
+        action: "FUNDING_TRANSACTION_DRAFT_UPDATED",
         details: {
-          funding_transaction_id: fundingTransaction.id,
-          transaction_number: transactionNumber,
+          funding_transaction_id: transactionId,
+          transaction_number: existingTransaction.transaction_number,
           transaction_type: transactionType,
-          investor_id: investorId,
-          investor_name: investorName,
-          capital_call_id: capitalCallId,
           amount,
           bank_charges: bankCharges,
           net_amount: netAmount,
-          currency_code: currencyCode || organisation.base_currency_code,
-          exchange_rate: exchangeRate,
-          exchange_rate_date: exchangeRateDate || transactionDate,
-          exchange_rate_source: exchangeRateSource,
-          exchange_rate_is_locked: exchangeRateIsLocked,
-          status: "DRAFT",
+          status: existingTransaction.status,
         },
       });
     } catch {
-      // Audit logging should not block funding transaction creation.
+      // Audit logging should not block edit.
     }
 
-    return Response.json({
+    return NextResponse.json({
       success: true,
-      fundingTransactionId: fundingTransaction.id,
-      status: "DRAFT",
+      fundingTransactionId: transactionId,
       transactionType,
       netAmount,
     });
   } catch (error) {
-    return Response.json(
+    return NextResponse.json(
       {
         error:
           error instanceof Error
             ? error.message
-            : "Unable to create funding transaction.",
+            : "Unable to update funding transaction.",
       },
       { status: 500 }
     );

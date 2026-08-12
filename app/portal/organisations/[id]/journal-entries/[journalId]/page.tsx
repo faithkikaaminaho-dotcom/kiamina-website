@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/server";
 import PostToGeneralLedgerButton from "./PostToGeneralLedgerButton";
+import BankingReconciliationContextPanel from "../../components/BankingReconciliationContextPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -887,6 +888,11 @@ return (
             </div>
           </div>
         </section>
+        <BankingReconciliationContextPanel
+  organisationId={organisation.id}
+  sourceModule="JOURNAL_ENTRY"
+  sourceRecordId={journal.id}
+/>
       </section>
     </main>
   );

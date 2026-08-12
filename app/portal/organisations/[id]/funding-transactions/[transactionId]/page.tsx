@@ -8,6 +8,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/server";
+import BankingReconciliationContextPanel from "../../components/BankingReconciliationContextPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,8 @@ const internalRoles = [
   "COMPLIANCE_ADMIN",
   "OPERATIONS_ADMIN",
 ];
+
+const editableStatuses = ["DRAFT", "READY_FOR_REVIEW", "REVIEWED", "UNDER_REVIEW"];
 
 type AnyRecord = Record<string, any>;
 
@@ -65,6 +68,16 @@ function formatAccount(account?: AnyRecord | null) {
   const name = account.account_name || "Unnamed account";
 
   return `${code} - ${name}`;
+}
+
+function formatBankAccount(account?: AnyRecord | null) {
+  if (!account) return "Not selected";
+
+  const bankName = account.bank_name || "Bank";
+  const accountName = account.account_name || "Unnamed bank account";
+  const accountNumber = account.account_number ? ` (${account.account_number})` : "";
+
+  return `${bankName} - ${accountName}${accountNumber}`;
 }
 
 function isOutflow(transactionType?: string | null) {
@@ -119,6 +132,19 @@ export default async function FundingTransactionDetailPage({
     redirect(`/portal/organisations/${id}/funding-transactions`);
   }
 
+  const { data: existingLedgerEntry } = await supabase
+    .from("general_ledger_entries")
+    .select("id")
+    .eq("organisation_id", id)
+    .eq("source_module", "FUNDING_TRANSACTION")
+    .eq("source_record_id", transactionId)
+    .maybeSingle();
+
+  const canEditTransaction =
+    editableStatuses.includes(transaction.status || "") &&
+    !transaction.posted_at &&
+    !existingLedgerEntry;
+
   let investor: AnyRecord | null = null;
 
   if (transaction.investor_id) {
@@ -149,8 +175,20 @@ export default async function FundingTransactionDetailPage({
     linkedCapitalCall = capitalCall;
   }
 
+  let bankAccount: AnyRecord | null = null;
+
+  if (transaction.bank_account_id) {
+    const { data: bankAccountRecord } = await supabase
+      .from("bank_accounts")
+      .select("id, account_name, bank_name, account_number, currency_code, gl_account_id")
+      .eq("id", transaction.bank_account_id)
+      .eq("organisation_id", id)
+      .maybeSingle();
+
+    bankAccount = bankAccountRecord;
+  }
+
   const accountIds = [
-    transaction.bank_account_id,
     transaction.equity_account_id,
     transaction.liability_account_id,
     transaction.income_account_id,
@@ -176,7 +214,6 @@ export default async function FundingTransactionDetailPage({
   const organisationName =
     organisation.trading_name || organisation.legal_name || "Organisation";
 
-  const bankAccount = accountMap.get(transaction.bank_account_id);
   const equityAccount = accountMap.get(transaction.equity_account_id);
   const liabilityAccount = accountMap.get(transaction.liability_account_id);
   const incomeAccount = accountMap.get(transaction.income_account_id);
@@ -238,6 +275,17 @@ export default async function FundingTransactionDetailPage({
                     Date: {formatDate(transaction.transaction_date)}
                   </span>
                 </div>
+
+                {canEditTransaction ? (
+                  <div className="mt-6">
+                    <a
+                      href={`/portal/organisations/${organisation.id}/funding-transactions/${transaction.id}/edit`}
+                      className="inline-flex rounded-full bg-[#073D7F] px-5 py-3 text-sm font-semibold text-white"
+                    >
+                      Edit Draft Funding Transaction
+                    </a>
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -250,6 +298,15 @@ export default async function FundingTransactionDetailPage({
               </div>
               <div className="mt-2">{investor?.email || "No email"}</div>
               <div className="mt-1">{investor?.phone || "No phone"}</div>
+
+              {canEditTransaction ? (
+                <a
+                  href={`/portal/organisations/${organisation.id}/funding-transactions/${transaction.id}/edit`}
+                  className="mt-4 inline-flex w-full justify-center rounded-full border border-[#D9E3F4] bg-white px-4 py-2 text-sm font-semibold text-[#073D7F]"
+                >
+                  Edit Draft Transaction
+                </a>
+              ) : null}
             </div>
           </div>
         </div>
@@ -293,6 +350,12 @@ export default async function FundingTransactionDetailPage({
             </div>
           </div>
         </div>
+
+        <BankingReconciliationContextPanel
+          organisationId={organisation.id}
+          sourceModule="FUNDING_TRANSACTION"
+          sourceRecordId={transaction.id}
+        />
 
         <div className="mt-8 grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">
           <section className="rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
@@ -454,7 +517,7 @@ export default async function FundingTransactionDetailPage({
                   Bank Account
                 </div>
                 <div className="mt-2 text-slate-600">
-                  {formatAccount(bankAccount)}
+                  {formatBankAccount(bankAccount)}
                 </div>
               </div>
 
@@ -551,13 +614,24 @@ export default async function FundingTransactionDetailPage({
                 This funding transaction is currently an operational draft
                 record. It does not update the general ledger, investor balance,
                 loan balance, capital call balance, bank balance, financial
-                reporting, or management reporting until Kiamina adds posting,
-                review, approval, and audit trail controls.
+                reporting, or management reporting until review, posting, and
+                audit trail controls are completed.
               </p>
 
-              <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#F1F1F1] px-4 py-2 text-sm font-semibold text-[#073D7F]">
-                <CheckCircle className="h-4 w-4" />
-                Ready for future review, matching, and posting workflow
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="inline-flex items-center gap-2 rounded-full bg-[#F1F1F1] px-4 py-2 text-sm font-semibold text-[#073D7F]">
+                  <CheckCircle className="h-4 w-4" />
+                  Ready for review, matching, and posting workflow
+                </div>
+
+                {canEditTransaction ? (
+                  <a
+                    href={`/portal/organisations/${organisation.id}/funding-transactions/${transaction.id}/edit`}
+                    className="inline-flex justify-center rounded-full bg-[#073D7F] px-5 py-2 text-sm font-semibold text-white"
+                  >
+                    Edit Draft Funding Transaction
+                  </a>
+                ) : null}
               </div>
             </div>
           </div>
