@@ -2,6 +2,17 @@ export const runtime = "nodejs";
 
 import { createClient } from "@/utils/supabase/server";
 
+const internalRoles = [
+  "SUPER_ADMIN",
+  "ADMIN",
+  "STAFF",
+  "IT_ADMIN",
+  "ACCOUNTANT_ADMIN",
+  "ACCOUNTANT_USER",
+  "COMPLIANCE_ADMIN",
+  "OPERATIONS_ADMIN",
+];
+
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
@@ -20,39 +31,58 @@ export async function POST(request: Request) {
       .eq("id", user.id)
       .single();
 
-    if (!profile || !["SUPER_ADMIN", "ADMIN", "STAFF"].includes(profile.role)) {
+    if (!profile || !internalRoles.includes(profile.role)) {
       return Response.json({ error: "Access denied." }, { status: 403 });
     }
 
     const body = await request.json();
 
-    const {
-      organisation_id,
-      name,
-      engagement_type,
-      reporting_period_start,
-      reporting_period_end,
-    }: {
-      organisation_id?: string;
-      name?: string;
-      engagement_type?: string;
-      reporting_period_start?: string;
-      reporting_period_end?: string;
-    } = body;
+    const organisationId = body.organisation_id
+      ? String(body.organisation_id).trim()
+      : "";
 
-    if (!organisation_id || !name || !engagement_type) {
+    const name = body.name ? String(body.name).trim() : "";
+
+    const engagementType = body.engagement_type
+      ? String(body.engagement_type).trim()
+      : "";
+
+    const reportingPeriodStart = body.reporting_period_start
+      ? String(body.reporting_period_start).trim()
+      : null;
+
+    const reportingPeriodEnd = body.reporting_period_end
+      ? String(body.reporting_period_end).trim()
+      : null;
+
+    if (!organisationId || !name || !engagementType) {
       return Response.json(
-        { error: "Organisation, engagement name, and engagement type are required." },
+        {
+          error:
+            "Organisation, engagement name, and engagement type are required.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (
+      reportingPeriodStart &&
+      reportingPeriodEnd &&
+      reportingPeriodStart > reportingPeriodEnd
+    ) {
+      return Response.json(
+        {
+          error:
+            "Reporting period start date cannot be after the reporting period end date.",
+        },
         { status: 400 }
       );
     }
 
     const { data: organisation, error: organisationError } = await supabase
       .from("organisations")
-      .select(
-        "id, legal_name, reporting_framework_code, base_currency_code"
-      )
-      .eq("id", organisation_id)
+      .select("id, legal_name, reporting_framework_code, base_currency_code")
+      .eq("id", organisationId)
       .single();
 
     if (organisationError || !organisation) {
@@ -65,12 +95,12 @@ export async function POST(request: Request) {
     const { data: engagement, error: engagementError } = await supabase
       .from("engagements")
       .insert({
-        organisation_id,
+        organisation_id: organisationId,
         name,
-        engagement_type,
+        engagement_type: engagementType,
         status: "planned",
-        reporting_period_start: reporting_period_start || null,
-        reporting_period_end: reporting_period_end || null,
+        reporting_period_start: reportingPeriodStart,
+        reporting_period_end: reportingPeriodEnd,
         reporting_framework_code: organisation.reporting_framework_code,
         currency_code: organisation.base_currency_code,
         created_by: user.id,
@@ -81,28 +111,31 @@ export async function POST(request: Request) {
     if (engagementError || !engagement) {
       return Response.json(
         {
-          error:
-            engagementError?.message || "Unable to create engagement.",
+          error: engagementError?.message || "Unable to create engagement.",
         },
         { status: 400 }
       );
     }
 
-    await supabase.from("audit_logs").insert({
-      user_id: user.id,
-      organisation_id,
-      action: "ENGAGEMENT_CREATED",
-      details: {
-        engagement_id: engagement.id,
-        organisation_name: organisation.legal_name,
-        name,
-        engagement_type,
-        reporting_period_start,
-        reporting_period_end,
-        reporting_framework_code: organisation.reporting_framework_code,
-        currency_code: organisation.base_currency_code,
-      },
-    });
+    try {
+      await supabase.from("audit_logs").insert({
+        user_id: user.id,
+        organisation_id: organisationId,
+        action: "ENGAGEMENT_CREATED",
+        details: {
+          engagement_id: engagement.id,
+          organisation_name: organisation.legal_name,
+          name,
+          engagement_type: engagementType,
+          reporting_period_start: reportingPeriodStart,
+          reporting_period_end: reportingPeriodEnd,
+          reporting_framework_code: organisation.reporting_framework_code,
+          currency_code: organisation.base_currency_code,
+        },
+      });
+    } catch {
+      // Audit logging should not block engagement creation.
+    }
 
     return Response.json({
       success: true,

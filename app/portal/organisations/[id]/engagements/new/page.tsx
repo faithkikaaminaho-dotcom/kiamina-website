@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useState, type ChangeEvent, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Briefcase, CheckCircle } from "lucide-react";
 
 const engagementTypes = [
@@ -44,6 +45,7 @@ export default function NewEngagementPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const router = useRouter();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -56,13 +58,13 @@ export default function NewEngagementPage({
   const [message, setMessage] = useState("");
 
   const handleChange = (
-    e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    event: ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setFormData({ ...formData, [event.target.name]: event.target.value });
   };
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
 
     if (!formData.name || !formData.engagement_type) {
       setStatus("error");
@@ -94,12 +96,8 @@ export default function NewEngagementPage({
       setStatus("success");
       setMessage("Engagement workspace created successfully.");
 
-      setFormData({
-        name: "",
-        engagement_type: "monthly_bookkeeping",
-        reporting_period_start: "",
-        reporting_period_end: "",
-      });
+      router.push(`/portal/engagements/${result.engagementId}`);
+      router.refresh();
     } catch (error) {
       setStatus("error");
       setMessage(
@@ -115,11 +113,11 @@ export default function NewEngagementPage({
       <section className="border-b border-[#D9E3F4] bg-white">
         <div className="mx-auto max-w-4xl px-6 py-8 lg:px-8">
           <a
-            href={`/portal/organisations/${id}`}
+            href={`/portal/organisations/${id}/engagements`}
             className="inline-flex items-center gap-2 text-sm font-semibold text-[#073D7F]"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to organisation
+            Back to engagements
           </a>
 
           <div className="mt-8">
@@ -206,13 +204,22 @@ export default function NewEngagementPage({
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={status === "loading"}
-              className="rounded-full bg-[#073D7F] px-6 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {status === "loading" ? "Creating..." : "Create Engagement"}
-            </button>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button
+                type="submit"
+                disabled={status === "loading"}
+                className="rounded-full bg-[#073D7F] px-6 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {status === "loading" ? "Creating..." : "Create Engagement"}
+              </button>
+
+              <a
+                href={`/portal/organisations/${id}/engagements`}
+                className="rounded-full border border-[#D9E3F4] bg-white px-6 py-3 text-center text-sm font-semibold text-[#073D7F]"
+              >
+                Cancel
+              </a>
+            </div>
 
             {message ? (
               <div

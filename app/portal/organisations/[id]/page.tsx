@@ -862,7 +862,7 @@ export default async function OrganisationDetailPage({
             </a>
 
             <a
-              href={`/portal/organisations/${organisation.id}/engagements/new`}
+              href={`/portal/organisations/${organisation.id}/engagements`}
               className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-5 transition hover:border-[#073D7F] hover:bg-white"
             >
               <Archive className="h-6 w-6 text-[#073D7F]" />
