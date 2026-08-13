@@ -16,6 +16,7 @@ import {
   MapPinned,
   ReceiptText,
   Settings,
+  UserRound,
   WalletCards,
 } from "lucide-react";
 
@@ -89,6 +90,10 @@ function formatAccountingYear({
   )}`;
 }
 
+function valueOrDash(value?: string | null) {
+  return value && value.trim().length > 0 ? value : "—";
+}
+
 export default async function OrganisationDetailPage({
   params,
 }: {
@@ -121,7 +126,7 @@ export default async function OrganisationDetailPage({
   const { data: organisation } = await supabase
     .from("organisations")
     .select(
-      "id, legal_name, trading_name, organisation_type, status, jurisdiction_code, reporting_framework_code, base_currency_code, registration_number, tax_identification_number, accounting_year_start_month, accounting_year_start_day, accounting_year_end_month, accounting_year_end_day, primary_contact_name, primary_contact_email, primary_contact_phone, risk_rating, legacy_client_id, created_at"
+      "id, legal_name, trading_name, logo_url, logo_storage_path, organisation_type, status, onboarding_status, jurisdiction_code, country_code, country_name, reporting_framework_code, base_currency_code, registration_number, tax_identification_number, primary_email, primary_phone, primary_contact_name, primary_contact_email, primary_contact_phone, accounting_year_start_month, accounting_year_start_day, accounting_year_end_month, accounting_year_end_day, risk_rating, legacy_client_id, created_at"
     )
     .eq("id", id)
     .single();
@@ -139,6 +144,15 @@ export default async function OrganisationDetailPage({
     endMonth: organisation.accounting_year_end_month,
     endDay: organisation.accounting_year_end_day,
   });
+
+  const countryDisplay =
+    organisation.country_name ||
+    organisation.country_code ||
+    organisation.jurisdiction_code ||
+    "Country not set";
+
+  const onboardingDisplay =
+    organisation.onboarding_status || organisation.status || "Not set";
 
   const [
     engagementsCountResult,
@@ -178,7 +192,12 @@ export default async function OrganisationDetailPage({
   const setupReadiness = [
     {
       label: "Organisation Settings",
-      value: organisation.reporting_framework_code ? "Configured" : "Review",
+      value:
+        organisation.reporting_framework_code &&
+        organisation.base_currency_code &&
+        accountingYear !== "Not configured"
+          ? "Configured"
+          : "Review",
       icon: Settings,
     },
     {
@@ -607,27 +626,43 @@ export default async function OrganisationDetailPage({
             Back to organisations
           </a>
 
-          <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_0.38fr]">
+          <div className="mt-8 grid gap-8 xl:grid-cols-[0.55fr_0.45fr]">
             <div>
-              <div className="inline-flex rounded-full bg-[#F1F1F1] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#073D7F]">
-                Organisation Workspace
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+                <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-[2rem] border border-[#D9E3F4] bg-[#F8FAFC] p-3">
+                  {organisation.logo_url ? (
+                    <img
+                      src={organisation.logo_url}
+                      alt={`${organisationName} logo`}
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  ) : (
+                    <Building2 className="h-10 w-10 text-[#073D7F]" />
+                  )}
+                </div>
+
+                <div>
+                  <div className="inline-flex rounded-full bg-[#F1F1F1] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#073D7F]">
+                    Organisation Workspace
+                  </div>
+
+                  <h1 className="mt-5 text-4xl font-semibold tracking-tight text-slate-950">
+                    {organisation.legal_name || "Untitled organisation"}
+                  </h1>
+
+                  <p className="mt-3 text-lg font-semibold text-[#073D7F]">
+                    Trading Name: {valueOrDash(organisation.trading_name)}
+                  </p>
+                </div>
               </div>
-
-              <h1 className="mt-5 text-4xl font-semibold tracking-tight text-slate-950">
-                {organisation.legal_name}
-              </h1>
-
-              <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
-                Core accounting setup for {organisationName}.
-              </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <span className="rounded-full bg-[#F1F1F1] px-4 py-2 text-sm font-semibold text-[#073D7F]">
-                  {formatStatus(organisation.status)}
+                  {formatStatus(onboardingDisplay)}
                 </span>
 
                 <span className="rounded-full bg-[#F1F1F1] px-4 py-2 text-sm font-semibold text-slate-700">
-                  {organisation.jurisdiction_code || "No jurisdiction"}
+                  {countryDisplay}
                 </span>
 
                 <span className="rounded-full bg-[#F1F1F1] px-4 py-2 text-sm font-semibold text-slate-700">
@@ -639,80 +674,67 @@ export default async function OrganisationDetailPage({
                 </span>
 
                 <span className="rounded-full bg-[#F1F1F1] px-4 py-2 text-sm font-semibold text-slate-700">
+                  Risk: {formatStatus(organisation.risk_rating)}
+                </span>
+
+                <span className="rounded-full bg-[#F1F1F1] px-4 py-2 text-sm font-semibold text-slate-700">
                   Accounting Year: {accountingYear}
                 </span>
               </div>
-
-              <div className="mt-6 flex flex-wrap gap-3">
-                <a
-                  href={`/portal/organisations/${organisation.id}/settings`}
-                  className="inline-flex items-center gap-2 rounded-full bg-[#073D7F] px-5 py-3 text-sm font-semibold text-white"
-                >
-                  <Settings className="h-4 w-4" />
-                  Organisation Settings
-                </a>
-
-                <a
-                  href={`/portal/organisations/${organisation.id}/chart-of-accounts`}
-                  className="inline-flex items-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
-                >
-                  <FileSpreadsheet className="h-4 w-4" />
-                  Chart of Accounts
-                </a>
-
-                <a
-                  href={`/portal/organisations/${organisation.id}/tracking`}
-                  className="inline-flex items-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
-                >
-                  <MapPinned className="h-4 w-4" />
-                  Tracking Dimensions
-                </a>
-              </div>
             </div>
 
-            <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F1F1F1] p-5">
-              <div className="flex items-center gap-3">
-                <Building2 className="h-5 w-5 text-[#073D7F]" />
-                <div className="text-sm font-semibold text-slate-950">
-                  Client Context
-                </div>
-              </div>
-
-              <div className="mt-5 space-y-3 text-sm text-slate-600">
-                <div>
-                  <span className="font-semibold text-slate-950">
-                    Trading Name:
-                  </span>{" "}
-                  {organisation.trading_name || "—"}
-                </div>
-
-                <div>
-                  <span className="font-semibold text-slate-950">
-                    Accounting Year:
-                  </span>{" "}
-                  {accountingYear}
-                </div>
-
-                <div>
-                  <span className="font-semibold text-slate-950">
-                    Risk Rating:
-                  </span>{" "}
-                  {formatStatus(organisation.risk_rating)}
-                </div>
-
-                <div>
-                  <span className="font-semibold text-slate-950">
-                    Primary Contact:
-                  </span>{" "}
-                  {organisation.primary_contact_name || "—"}
-                </div>
-
-                <div className="flex items-center gap-2">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-5">
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
                   <Mail className="h-4 w-4 text-[#073D7F]" />
-                  {organisation.primary_contact_email || "—"}
+                  General Contact
+                </div>
+
+                <div className="mt-4 space-y-2 text-sm leading-6 text-slate-600">
+                  <div>Email: {valueOrDash(organisation.primary_email)}</div>
+                  <div>Phone: {valueOrDash(organisation.primary_phone)}</div>
+                </div>
+              </div>
+
+              <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-5">
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+                  <UserRound className="h-4 w-4 text-[#073D7F]" />
+                  Primary Contact
+                </div>
+
+                <div className="mt-4 space-y-2 text-sm leading-6 text-slate-600">
+                  <div>Name: {valueOrDash(organisation.primary_contact_name)}</div>
+                  <div>Email: {valueOrDash(organisation.primary_contact_email)}</div>
+                  <div>Phone: {valueOrDash(organisation.primary_contact_phone)}</div>
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <a
+              href={`/portal/organisations/${organisation.id}/settings`}
+              className="inline-flex items-center gap-2 rounded-full bg-[#073D7F] px-5 py-3 text-sm font-semibold text-white"
+            >
+              <Settings className="h-4 w-4" />
+              Organisation Settings
+            </a>
+
+            <a
+              href={`/portal/organisations/${organisation.id}/chart-of-accounts`}
+              className="inline-flex items-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Chart of Accounts
+            </a>
+
+            <a
+              href={`/portal/organisations/${organisation.id}/tracking`}
+              className="inline-flex items-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
+            >
+              <MapPinned className="h-4 w-4" />
+              Tracking Dimensions
+            </a>
           </div>
         </div>
       </section>
