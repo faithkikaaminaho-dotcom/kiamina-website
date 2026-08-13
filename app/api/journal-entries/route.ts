@@ -50,6 +50,13 @@ type JournalLineInput = {
   customer_id?: string | null;
   supplier_id?: string | null;
   investor_id?: string | null;
+  department_id?: string | null;
+  location_id?: string | null;
+  project_id?: string | null;
+  cost_centre_id?: string | null;
+  class_id?: string | null;
+  fund_grant_id?: string | null;
+  service_line_id?: string | null;
 };
 
 export async function POST(request: Request) {
@@ -99,9 +106,7 @@ export async function POST(request: Request) {
       .trim()
       .toUpperCase();
 
-    const description = body.description
-      ? String(body.description).trim()
-      : null;
+    const description = body.description ? String(body.description).trim() : null;
 
     const referenceNumber = body.reference_number
       ? String(body.reference_number).trim()
@@ -149,10 +154,7 @@ export async function POST(request: Request) {
     }
 
     if (!allowedJournalTypes.includes(journalType)) {
-      return Response.json(
-        { error: "Invalid journal type." },
-        { status: 400 }
-      );
+      return Response.json({ error: "Invalid journal type." }, { status: 400 });
     }
 
     if (lines.length < 2) {
@@ -190,6 +192,21 @@ export async function POST(request: Request) {
         customer_id: line.customer_id ? String(line.customer_id).trim() : null,
         supplier_id: line.supplier_id ? String(line.supplier_id).trim() : null,
         investor_id: line.investor_id ? String(line.investor_id).trim() : null,
+        department_id: line.department_id
+          ? String(line.department_id).trim()
+          : null,
+        location_id: line.location_id ? String(line.location_id).trim() : null,
+        project_id: line.project_id ? String(line.project_id).trim() : null,
+        cost_centre_id: line.cost_centre_id
+          ? String(line.cost_centre_id).trim()
+          : null,
+        class_id: line.class_id ? String(line.class_id).trim() : null,
+        fund_grant_id: line.fund_grant_id
+          ? String(line.fund_grant_id).trim()
+          : null,
+        service_line_id: line.service_line_id
+          ? String(line.service_line_id).trim()
+          : null,
       };
     });
 
@@ -211,8 +228,7 @@ export async function POST(request: Request) {
       if (line.debit_amount > 0 && line.credit_amount > 0) {
         return Response.json(
           {
-            error:
-              "A journal line cannot have both debit and credit amounts.",
+            error: "A journal line cannot have both debit and credit amounts.",
           },
           { status: 400 }
         );
@@ -308,8 +324,7 @@ export async function POST(request: Request) {
     if (journalEntryError || !journalEntry) {
       return Response.json(
         {
-          error:
-            journalEntryError?.message || "Unable to create journal entry.",
+          error: journalEntryError?.message || "Unable to create journal entry.",
         },
         { status: 500 }
       );
@@ -326,6 +341,13 @@ export async function POST(request: Request) {
       customer_id: line.customer_id,
       supplier_id: line.supplier_id,
       investor_id: line.investor_id,
+      department_id: line.department_id,
+      location_id: line.location_id,
+      project_id: line.project_id,
+      cost_centre_id: line.cost_centre_id,
+      class_id: line.class_id,
+      fund_grant_id: line.fund_grant_id,
+      service_line_id: line.service_line_id,
     }));
 
     const { error: journalLinesError } = await supabase
@@ -365,6 +387,7 @@ export async function POST(request: Request) {
           exchange_rate_is_locked: exchangeRateIsLocked,
           line_count: cleanLines.length,
           status: "DRAFT",
+          tracking_dimensions_enabled: true,
         },
       });
     } catch {

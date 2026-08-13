@@ -81,19 +81,33 @@ export default async function NewJournalEntryPage({
     .eq("is_active", true)
     .order("investor_name", { ascending: true });
 
+  const { data: trackingCategories } = await supabase
+    .from("tracking_categories")
+    .select("id, category_code, category_name")
+    .eq("organisation_id", id)
+    .or("is_active.eq.true,is_active.is.null")
+    .order("category_code", { ascending: true });
+
+  const { data: trackingOptions } = await supabase
+    .from("tracking_options")
+    .select("id, tracking_category_id, option_code, option_name, is_active")
+    .eq("organisation_id", id)
+    .or("is_active.eq.true,is_active.is.null")
+    .order("option_name", { ascending: true });
+
   const organisationName =
     organisation.trading_name || organisation.legal_name || "Organisation";
 
   return (
     <main className="min-h-screen bg-[#F8FAFC]">
       <section className="border-b border-[#D9E3F4] bg-white">
-        <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+        <div className="mx-auto max-w-6xl px-6 py-8 lg:px-8">
           <a
-            href={`/portal/organisations/${organisation.id}`}
+            href={`/portal/organisations/${organisation.id}/journal-entries`}
             className="inline-flex items-center gap-2 text-sm font-semibold text-[#073D7F]"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to organisation workspace
+            Back to journal entries
           </a>
 
           <div className="mt-8 flex items-start gap-5">
@@ -103,32 +117,22 @@ export default async function NewJournalEntryPage({
 
             <div>
               <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
-                Journals Module
+                New Journal Entry
               </div>
 
               <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950">
-                Create draft journal entry
+                Create Draft Journal
               </h1>
 
               <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
-                Record a controlled draft journal for {organisationName}. This
-                supports manual journals, opening balances, payroll journals,
-                tax journals, accruals, prepayments, depreciation, FX
-                revaluation, corrections, and year-end adjustments.
-              </p>
-
-              <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-500">
-                Journals created here are saved as drafts only. They will not
-                post to the general ledger, trial balance, financial statements,
-                or management reports until posting, review, approval, and audit
-                controls are added.
+                Create a balanced draft journal for {organisationName}.
               </p>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
+      <section className="mx-auto max-w-6xl px-6 py-10 lg:px-8">
         <CreateJournalEntryForm
           organisationId={organisation.id}
           defaultCurrency={organisation.base_currency_code}
@@ -136,6 +140,8 @@ export default async function NewJournalEntryPage({
           customers={customers || []}
           suppliers={suppliers || []}
           investors={investors || []}
+          trackingCategories={trackingCategories || []}
+          trackingOptions={trackingOptions || []}
         />
       </section>
     </main>

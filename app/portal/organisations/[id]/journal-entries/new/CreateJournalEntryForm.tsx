@@ -29,6 +29,20 @@ type InvestorOption = {
   investor_name: string | null;
 };
 
+type TrackingCategory = {
+  id: string;
+  category_code: string | null;
+  category_name: string | null;
+};
+
+type TrackingOption = {
+  id: string;
+  tracking_category_id: string;
+  option_code: string | null;
+  option_name: string | null;
+  is_active: boolean | null;
+};
+
 type JournalLine = {
   account_id: string;
   description: string;
@@ -37,6 +51,13 @@ type JournalLine = {
   customer_id: string;
   supplier_id: string;
   investor_id: string;
+  department_id: string;
+  location_id: string;
+  project_id: string;
+  cost_centre_id: string;
+  class_id: string;
+  fund_grant_id: string;
+  service_line_id: string;
 };
 
 type InitialJournal = {
@@ -62,7 +83,41 @@ type InitialJournalLine = {
   customer_id: string | null;
   supplier_id: string | null;
   investor_id: string | null;
+  department_id?: string | null;
+  location_id?: string | null;
+  project_id?: string | null;
+  cost_centre_id?: string | null;
+  class_id?: string | null;
+  fund_grant_id?: string | null;
+  service_line_id?: string | null;
 };
+
+const dimensionFields: {
+  key: keyof Pick<
+    JournalLine,
+    | "department_id"
+    | "location_id"
+    | "project_id"
+    | "cost_centre_id"
+    | "class_id"
+    | "fund_grant_id"
+    | "service_line_id"
+  >;
+  label: string;
+  categoryCode: string;
+}[] = [
+  { key: "department_id", label: "Department", categoryCode: "DEPARTMENT" },
+  { key: "location_id", label: "Location", categoryCode: "LOCATION" },
+  { key: "project_id", label: "Project", categoryCode: "PROJECT" },
+  { key: "cost_centre_id", label: "Cost Centre", categoryCode: "COST_CENTRE" },
+  { key: "class_id", label: "Class", categoryCode: "CLASS" },
+  { key: "fund_grant_id", label: "Fund / Grant", categoryCode: "FUND_GRANT" },
+  {
+    key: "service_line_id",
+    label: "Service Line",
+    categoryCode: "SERVICE_LINE",
+  },
+];
 
 function todayDate() {
   return new Date().toISOString().slice(0, 10);
@@ -77,6 +132,13 @@ function emptyLine(): JournalLine {
     customer_id: "",
     supplier_id: "",
     investor_id: "",
+    department_id: "",
+    location_id: "",
+    project_id: "",
+    cost_centre_id: "",
+    class_id: "",
+    fund_grant_id: "",
+    service_line_id: "",
   };
 }
 
@@ -105,6 +167,15 @@ function normaliseAmount(value: number | string | null | undefined) {
   return String(numericValue);
 }
 
+function normaliseText(value?: string | null) {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/&/g, "AND")
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
 function normaliseLine(line: InitialJournalLine): JournalLine {
   return {
     account_id: line.account_id || "",
@@ -114,6 +185,13 @@ function normaliseLine(line: InitialJournalLine): JournalLine {
     customer_id: line.customer_id || "",
     supplier_id: line.supplier_id || "",
     investor_id: line.investor_id || "",
+    department_id: line.department_id || "",
+    location_id: line.location_id || "",
+    project_id: line.project_id || "",
+    cost_centre_id: line.cost_centre_id || "",
+    class_id: line.class_id || "",
+    fund_grant_id: line.fund_grant_id || "",
+    service_line_id: line.service_line_id || "",
   };
 }
 
@@ -124,6 +202,8 @@ export default function CreateJournalEntryForm({
   customers,
   suppliers,
   investors,
+  trackingCategories = [],
+  trackingOptions = [],
   mode = "create",
   initialJournal,
   initialLines,
@@ -134,6 +214,8 @@ export default function CreateJournalEntryForm({
   customers: CustomerOption[];
   suppliers: SupplierOption[];
   investors: InvestorOption[];
+  trackingCategories?: TrackingCategory[];
+  trackingOptions?: TrackingOption[];
   mode?: "create" | "edit";
   initialJournal?: InitialJournal | null;
   initialLines?: InitialJournalLine[];
@@ -202,6 +284,27 @@ export default function CreateJournalEntryForm({
       isBalanced: totalDebits > 0 && totalDebits === totalCredits,
     };
   }, [lines]);
+
+  function getOptionsForCategory(categoryCode: string) {
+    const wantedCode = normaliseText(categoryCode);
+
+    const category = trackingCategories.find((item) => {
+      const code = normaliseText(item.category_code);
+      const name = normaliseText(item.category_name);
+
+      return code === wantedCode || name === wantedCode;
+    });
+
+    if (!category) {
+      return [];
+    }
+
+    return trackingOptions.filter(
+      (option) =>
+        option.tracking_category_id === category.id &&
+        option.is_active !== false
+    );
+  }
 
   function updateLine(index: number, field: keyof JournalLine, value: string) {
     setLines((currentLines) =>
@@ -284,6 +387,13 @@ export default function CreateJournalEntryForm({
             customer_id: line.customer_id || null,
             supplier_id: line.supplier_id || null,
             investor_id: line.investor_id || null,
+            department_id: line.department_id || null,
+            location_id: line.location_id || null,
+            project_id: line.project_id || null,
+            cost_centre_id: line.cost_centre_id || null,
+            class_id: line.class_id || null,
+            fund_grant_id: line.fund_grant_id || null,
+            service_line_id: line.service_line_id || null,
           })),
         }),
       });
@@ -624,6 +734,42 @@ export default function CreateJournalEntryForm({
                     ))}
                   </select>
                 </label>
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] p-4">
+                <div className="text-sm font-semibold text-slate-950">
+                  Tracking Dimensions optional
+                </div>
+
+                <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  {dimensionFields.map((field) => {
+                    const options = getOptionsForCategory(field.categoryCode);
+
+                    return (
+                      <label key={field.key} className="block">
+                        <span className="text-sm font-semibold text-slate-700">
+                          {field.label}
+                        </span>
+                        <select
+                          value={line[field.key]}
+                          onChange={(event) =>
+                            updateLine(index, field.key, event.target.value)
+                          }
+                          className="mt-2 w-full rounded-2xl border border-[#D9E3F4] bg-white px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
+                        >
+                          <option value="">None</option>
+                          {options.map((option) => (
+                            <option key={option.id} value={option.id}>
+                              {option.option_code
+                                ? `${option.option_code} - ${option.option_name}`
+                                : option.option_name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           ))}

@@ -38,6 +38,13 @@ type JournalLineInput = {
   customer_id?: string | null;
   supplier_id?: string | null;
   investor_id?: string | null;
+  department_id?: string | null;
+  location_id?: string | null;
+  project_id?: string | null;
+  cost_centre_id?: string | null;
+  class_id?: string | null;
+  fund_grant_id?: string | null;
+  service_line_id?: string | null;
 };
 
 function toNumber(value: unknown, fallback = 0) {
@@ -154,7 +161,10 @@ export async function PATCH(
       ? String(body.currency_code).trim().toUpperCase()
       : existingJournal.currency_code;
 
-    const exchangeRate = toNumber(body.exchange_rate, existingJournal.exchange_rate || 1);
+    const exchangeRate = toNumber(
+      body.exchange_rate,
+      existingJournal.exchange_rate || 1
+    );
 
     const exchangeRateDate = body.exchange_rate_date
       ? String(body.exchange_rate_date).trim()
@@ -206,6 +216,21 @@ export async function PATCH(
         customer_id: line.customer_id ? String(line.customer_id).trim() : null,
         supplier_id: line.supplier_id ? String(line.supplier_id).trim() : null,
         investor_id: line.investor_id ? String(line.investor_id).trim() : null,
+        department_id: line.department_id
+          ? String(line.department_id).trim()
+          : null,
+        location_id: line.location_id ? String(line.location_id).trim() : null,
+        project_id: line.project_id ? String(line.project_id).trim() : null,
+        cost_centre_id: line.cost_centre_id
+          ? String(line.cost_centre_id).trim()
+          : null,
+        class_id: line.class_id ? String(line.class_id).trim() : null,
+        fund_grant_id: line.fund_grant_id
+          ? String(line.fund_grant_id).trim()
+          : null,
+        service_line_id: line.service_line_id
+          ? String(line.service_line_id).trim()
+          : null,
       };
     });
 
@@ -227,8 +252,7 @@ export async function PATCH(
       if (line.debit_amount > 0 && line.credit_amount > 0) {
         return NextResponse.json(
           {
-            error:
-              "A journal line cannot have both debit and credit amounts.",
+            error: "A journal line cannot have both debit and credit amounts.",
           },
           { status: 400 }
         );
@@ -305,7 +329,9 @@ export async function PATCH(
 
     const { data: oldLines } = await supabase
       .from("journal_entry_lines")
-      .select("id, line_number, account_id, description, debit_amount, credit_amount, customer_id, supplier_id, investor_id")
+      .select(
+        "id, line_number, account_id, description, debit_amount, credit_amount, customer_id, supplier_id, investor_id, department_id, location_id, project_id, cost_centre_id, class_id, fund_grant_id, service_line_id"
+      )
       .eq("journal_entry_id", existingJournal.id)
       .eq("organisation_id", existingJournal.organisation_id)
       .order("line_number", { ascending: true });
@@ -348,7 +374,8 @@ export async function PATCH(
     if (deleteLinesError) {
       return NextResponse.json(
         {
-          error: "Journal header was updated, but old lines could not be replaced.",
+          error:
+            "Journal header was updated, but old lines could not be replaced.",
           details: deleteLinesError.message,
         },
         { status: 500 }
@@ -366,6 +393,13 @@ export async function PATCH(
       customer_id: line.customer_id,
       supplier_id: line.supplier_id,
       investor_id: line.investor_id,
+      department_id: line.department_id,
+      location_id: line.location_id,
+      project_id: line.project_id,
+      cost_centre_id: line.cost_centre_id,
+      class_id: line.class_id,
+      fund_grant_id: line.fund_grant_id,
+      service_line_id: line.service_line_id,
     }));
 
     const { error: insertLinesError } = await supabase
@@ -401,6 +435,7 @@ export async function PATCH(
           exchange_rate: exchangeRate,
           old_lines: oldLines || [],
           new_lines: cleanLines,
+          tracking_dimensions_enabled: true,
         },
       });
     } catch {

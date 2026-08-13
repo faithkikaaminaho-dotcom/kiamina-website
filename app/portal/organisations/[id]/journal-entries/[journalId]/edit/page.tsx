@@ -85,7 +85,7 @@ export default async function EditJournalEntryPage({
   const { data: journalLines } = await supabase
     .from("journal_entry_lines")
     .select(
-      "account_id, description, debit_amount, credit_amount, customer_id, supplier_id, investor_id"
+      "account_id, description, debit_amount, credit_amount, customer_id, supplier_id, investor_id, department_id, location_id, project_id, cost_centre_id, class_id, fund_grant_id, service_line_id"
     )
     .eq("journal_entry_id", journalId)
     .eq("organisation_id", id)
@@ -118,6 +118,20 @@ export default async function EditJournalEntryPage({
     .eq("organisation_id", id)
     .eq("is_active", true)
     .order("investor_name", { ascending: true });
+
+  const { data: trackingCategories } = await supabase
+    .from("tracking_categories")
+    .select("id, category_code, category_name")
+    .eq("organisation_id", id)
+    .or("is_active.eq.true,is_active.is.null")
+    .order("category_code", { ascending: true });
+
+  const { data: trackingOptions } = await supabase
+    .from("tracking_options")
+    .select("id, tracking_category_id, option_code, option_name, is_active")
+    .eq("organisation_id", id)
+    .or("is_active.eq.true,is_active.is.null")
+    .order("option_name", { ascending: true });
 
   const organisationName =
     organisation.trading_name || organisation.legal_name || "Organisation";
@@ -166,6 +180,8 @@ export default async function EditJournalEntryPage({
           customers={customers || []}
           suppliers={suppliers || []}
           investors={investors || []}
+          trackingCategories={trackingCategories || []}
+          trackingOptions={trackingOptions || []}
           mode="edit"
           initialJournal={journal}
           initialLines={journalLines || []}
