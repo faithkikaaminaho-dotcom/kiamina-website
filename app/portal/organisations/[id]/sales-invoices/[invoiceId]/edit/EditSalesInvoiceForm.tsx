@@ -313,6 +313,13 @@ export default function EditSalesInvoiceForm({
   const [documentActionError, setDocumentActionError] = useState("");
   const [documentActionLoading, setDocumentActionLoading] = useState(false);
 
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadDocumentType, setUploadDocumentType] = useState(
+    "Sales Invoice Supporting Document"
+  );
+  const [uploadDescription, setUploadDescription] = useState("");
+  const [uploadLoading, setUploadLoading] = useState(false);
+
   const categoryById = useMemo(() => {
     return new Map(trackingCategories.map((category) => [category.id, category]));
   }, [trackingCategories]);
@@ -456,6 +463,61 @@ export default function EditSalesInvoiceForm({
     }
   }
 
+  async function handleUploadDocument() {
+    setDocumentActionMessage("");
+    setDocumentActionError("");
+
+    if (!uploadFile) {
+      setDocumentActionError("Select a file to upload.");
+      return;
+    }
+
+    setUploadLoading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("organisation_id", organisationId);
+      formData.append("file", uploadFile);
+      formData.append("document_type", uploadDocumentType);
+      formData.append("description", uploadDescription);
+
+      const response = await fetch(
+        `/api/sales-invoices/${invoice.id}/documents/upload`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Unable to upload document.");
+      }
+
+      setDocumentActionMessage("Document uploaded and linked successfully.");
+      setUploadFile(null);
+      setUploadDocumentType("Sales Invoice Supporting Document");
+      setUploadDescription("");
+
+      const fileInput = document.getElementById(
+        "sales-invoice-document-upload"
+      ) as HTMLInputElement | null;
+
+      if (fileInput) {
+        fileInput.value = "";
+      }
+
+      router.refresh();
+    } catch (error) {
+      setDocumentActionError(
+        error instanceof Error ? error.message : "Unable to upload document."
+      );
+    } finally {
+      setUploadLoading(false);
+    }
+  }
+
   async function handleDetachDocument(documentId: string) {
     setDocumentActionMessage("");
     setDocumentActionError("");
@@ -578,9 +640,8 @@ export default function EditSalesInvoiceForm({
         </h2>
 
         <p className="mt-2 text-sm leading-7 text-slate-600">
-          Attach evidence already uploaded to the organisation, such as customer
-          purchase orders, contracts, service confirmations, invoice PDFs, or
-          approval support.
+          Upload new evidence directly to this invoice or attach an existing
+          organisation document.
         </p>
 
         {documentActionError ? (
@@ -595,42 +656,109 @@ export default function EditSalesInvoiceForm({
           </div>
         ) : null}
 
-        <div className="mt-5 rounded-2xl border border-[#D9E3F4] bg-white p-5">
-          <label className="block">
-            <span className="text-sm font-semibold text-slate-700">
+        <div className="mt-5 grid gap-5 lg:grid-cols-2">
+          <div className="rounded-2xl border border-[#D9E3F4] bg-white p-5">
+            <div className="font-semibold text-slate-950">
+              Upload new supporting document
+            </div>
+
+            <div className="mt-4 space-y-4">
+              <label className="block">
+                <span className="text-sm font-semibold text-slate-700">
+                  File
+                </span>
+                <input
+                  id="sales-invoice-document-upload"
+                  type="file"
+                  onChange={(event) =>
+                    setUploadFile(event.target.files?.[0] || null)
+                  }
+                  className="mt-2 w-full rounded-2xl border border-[#D9E3F4] bg-white px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-semibold text-slate-700">
+                  Document type
+                </span>
+                <input
+                  value={uploadDocumentType}
+                  onChange={(event) => setUploadDocumentType(event.target.value)}
+                  placeholder="Customer PO, Contract, Approval support"
+                  className="mt-2 w-full rounded-2xl border border-[#D9E3F4] bg-white px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-semibold text-slate-700">
+                  Description
+                </span>
+                <textarea
+                  value={uploadDescription}
+                  onChange={(event) => setUploadDescription(event.target.value)}
+                  rows={3}
+                  placeholder="Optional note about this supporting document."
+                  className="mt-2 w-full rounded-2xl border border-[#D9E3F4] bg-white px-4 py-3 text-sm leading-7 outline-none focus:border-[#073D7F]"
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={handleUploadDocument}
+                disabled={uploadLoading || !uploadFile}
+                className="rounded-full bg-[#073D7F] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {uploadLoading ? "Uploading..." : "Upload and Link Document"}
+              </button>
+
+              <p className="text-xs leading-6 text-slate-500">
+                Maximum file size: 25MB. The document will be uploaded, saved in
+                the documents register, and linked to this sales invoice.
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-[#D9E3F4] bg-white p-5">
+            <div className="font-semibold text-slate-950">
               Attach existing document
-            </span>
+            </div>
 
-            <select
-              value={documentIdToAttach}
-              onChange={(event) => setDocumentIdToAttach(event.target.value)}
-              className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
+            <label className="mt-4 block">
+              <span className="text-sm font-semibold text-slate-700">
+                Uploaded document
+              </span>
+
+              <select
+                value={documentIdToAttach}
+                onChange={(event) => setDocumentIdToAttach(event.target.value)}
+                className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
+              >
+                <option value="">Select uploaded document</option>
+                {availableDocuments.map((document) => (
+                  <option key={document.id} value={document.id}>
+                    {document.file_name || "Untitled document"} ·{" "}
+                    {document.document_type || "Document"} ·{" "}
+                    {formatDate(document.created_at)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <button
+              type="button"
+              onClick={handleAttachDocument}
+              disabled={documentActionLoading || !documentIdToAttach}
+              className="mt-4 rounded-full bg-[#073D7F] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <option value="">Select uploaded document</option>
-              {availableDocuments.map((document) => (
-                <option key={document.id} value={document.id}>
-                  {document.file_name || "Untitled document"} ·{" "}
-                  {document.document_type || "Document"} ·{" "}
-                  {formatDate(document.created_at)}
-                </option>
-              ))}
-            </select>
-          </label>
+              {documentActionLoading ? "Working..." : "Attach Document"}
+            </button>
 
-          <button
-            type="button"
-            onClick={handleAttachDocument}
-            disabled={documentActionLoading || !documentIdToAttach}
-            className="mt-4 rounded-full bg-[#073D7F] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {documentActionLoading ? "Working..." : "Attach Document"}
-          </button>
-
-          {availableDocuments.length === 0 ? (
-            <p className="mt-3 text-sm text-slate-500">
-              No unattached organisation documents are available yet.
-            </p>
-          ) : null}
+            {availableDocuments.length === 0 ? (
+              <p className="mt-3 text-sm text-slate-500">
+                No unattached organisation documents are available yet.
+              </p>
+            ) : null}
+          </div>
         </div>
 
         <div className="mt-5 space-y-3">
