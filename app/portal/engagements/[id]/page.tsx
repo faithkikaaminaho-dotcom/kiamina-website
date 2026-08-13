@@ -5,15 +5,28 @@ import {
   BarChart3,
   BookOpen,
   Briefcase,
+  CalendarDays,
   CheckCircle,
   ClipboardList,
   Coins,
   FileText,
   FolderOpen,
   ShieldCheck,
+  Upload,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
+
+const internalRoles = [
+  "SUPER_ADMIN",
+  "ADMIN",
+  "STAFF",
+  "IT_ADMIN",
+  "ACCOUNTANT_ADMIN",
+  "ACCOUNTANT_USER",
+  "COMPLIANCE_ADMIN",
+  "OPERATIONS_ADMIN",
+];
 
 function formatLabel(value?: string | null) {
   if (!value) return "—";
@@ -28,7 +41,40 @@ function formatLabel(value?: string | null) {
   return value
     .split("_")
     .join(" ")
+    .toLowerCase()
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "—";
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
+function getStatusClass(status?: string | null) {
+  const normalised = String(status || "").toLowerCase();
+
+  if (["active", "in_progress", "open"].includes(normalised)) {
+    return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+  }
+
+  if (["completed", "closed", "approved"].includes(normalised)) {
+    return "bg-blue-50 text-blue-700 ring-blue-200";
+  }
+
+  if (["paused", "on_hold"].includes(normalised)) {
+    return "bg-amber-50 text-amber-700 ring-amber-200";
+  }
+
+  if (["cancelled", "void", "archived"].includes(normalised)) {
+    return "bg-slate-100 text-slate-600 ring-slate-200";
+  }
+
+  return "bg-[#F1F1F1] text-[#073D7F] ring-[#D9E3F4]";
 }
 
 export default async function EngagementDetailPage({
@@ -54,7 +100,7 @@ export default async function EngagementDetailPage({
     .eq("id", user.id)
     .single();
 
-  if (!profile || !["SUPER_ADMIN", "ADMIN", "STAFF"].includes(profile.role)) {
+  if (!profile || !internalRoles.includes(profile.role)) {
     redirect("/portal");
   }
 
@@ -75,7 +121,12 @@ export default async function EngagementDetailPage({
       organisations (
         id,
         legal_name,
-        jurisdiction_code
+        trading_name,
+        jurisdiction_code,
+        country_name,
+        country_code,
+        base_currency_code,
+        reporting_framework_code
       )
     `
     )
@@ -89,6 +140,11 @@ export default async function EngagementDetailPage({
   const organisation = Array.isArray(engagement.organisations)
     ? engagement.organisations[0]
     : engagement.organisations;
+
+  const organisationName =
+    organisation?.trading_name ||
+    organisation?.legal_name ||
+    "Organisation";
 
   const { count: documentsCount } = await supabase
     .from("documents")
@@ -181,43 +237,124 @@ export default async function EngagementDetailPage({
       <section className="border-b border-[#D9E3F4] bg-white">
         <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
           <a
-            href={`/portal/organisations/${engagement.organisation_id}`}
+            href={`/portal/organisations/${engagement.organisation_id}/engagements`}
             className="inline-flex items-center gap-2 text-sm font-semibold text-[#073D7F]"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to organisation
+            Back to engagement register
           </a>
 
-          <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_0.35fr]">
+          <div className="mt-8 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
+              <div className="inline-flex rounded-full bg-[#F1F1F1] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#073D7F]">
                 Engagement Workspace
               </div>
 
-              <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950">
-                {engagement.name}
+              <h1 className="mt-5 text-4xl font-semibold tracking-tight text-slate-950">
+                {engagement.name || "Untitled engagement"}
               </h1>
 
               <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
                 Organisation:{" "}
                 <span className="font-semibold text-slate-950">
-                  {organisation?.legal_name || "—"}
+                  {organisationName}
                 </span>
               </p>
+
+              <div className="mt-5 flex flex-wrap gap-3">
+                <span
+                  className={`rounded-full px-4 py-2 text-sm font-semibold ring-1 ${getStatusClass(
+                    engagement.status
+                  )}`}
+                >
+                  {formatLabel(engagement.status)}
+                </span>
+
+                <span className="rounded-full bg-[#F1F1F1] px-4 py-2 text-sm font-semibold text-slate-700">
+                  {formatLabel(engagement.engagement_type)}
+                </span>
+
+                <span className="rounded-full bg-[#F1F1F1] px-4 py-2 text-sm font-semibold text-slate-700">
+                  {formatDate(engagement.reporting_period_start)} to{" "}
+                  {formatDate(engagement.reporting_period_end)}
+                </span>
+
+                <span className="rounded-full bg-[#F1F1F1] px-4 py-2 text-sm font-semibold text-slate-700">
+                  {formatLabel(engagement.reporting_framework_code)}
+                </span>
+
+                <span className="rounded-full bg-[#F1F1F1] px-4 py-2 text-sm font-semibold text-slate-700">
+                  {engagement.currency_code || "No currency"}
+                </span>
+              </div>
             </div>
 
-            <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F1F1F1] p-5">
+            <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-5">
               <div className="flex items-center gap-3">
                 <Briefcase className="h-5 w-5 text-[#073D7F]" />
                 <div className="text-sm font-semibold text-slate-950">
-                  Engagement Status
+                  Engagement Context
                 </div>
               </div>
 
-              <div className="mt-4 inline-flex rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#073D7F]">
-                {formatLabel(engagement.status)}
+              <div className="mt-4 space-y-2 text-sm leading-6 text-slate-600">
+                <div>
+                  <span className="font-semibold text-slate-950">Type:</span>{" "}
+                  {formatLabel(engagement.engagement_type)}
+                </div>
+
+                <div>
+                  <span className="font-semibold text-slate-950">Period:</span>{" "}
+                  {formatDate(engagement.reporting_period_start)} to{" "}
+                  {formatDate(engagement.reporting_period_end)}
+                </div>
+
+                <div>
+                  <span className="font-semibold text-slate-950">
+                    Framework:
+                  </span>{" "}
+                  {formatLabel(engagement.reporting_framework_code)}
+                </div>
+
+                <div>
+                  <span className="font-semibold text-slate-950">
+                    Created:
+                  </span>{" "}
+                  {formatDate(engagement.created_at)}
+                </div>
               </div>
             </div>
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <a
+              href={`/portal/engagements/${engagement.id}/upload`}
+              className="inline-flex items-center gap-2 rounded-full bg-[#073D7F] px-6 py-3 text-sm font-semibold text-white"
+            >
+              <Upload className="h-4 w-4" />
+              Upload Document
+            </a>
+
+            <a
+              href={`/portal/organisations/${engagement.organisation_id}/engagements`}
+              className="rounded-full border border-[#D9E3F4] bg-white px-6 py-3 text-sm font-semibold text-[#073D7F]"
+            >
+              Engagement Register
+            </a>
+
+            <a
+              href={`/portal/organisations/${engagement.organisation_id}`}
+              className="rounded-full border border-[#D9E3F4] bg-white px-6 py-3 text-sm font-semibold text-[#073D7F]"
+            >
+              Organisation Workspace
+            </a>
+
+            <a
+              href="/portal/operations"
+              className="rounded-full border border-[#D9E3F4] bg-white px-6 py-3 text-sm font-semibold text-[#073D7F]"
+            >
+              Review Queue
+            </a>
           </div>
         </div>
       </section>
@@ -284,15 +421,18 @@ export default async function EngagementDetailPage({
                 <span className="font-semibold text-slate-950">
                   Reporting Period:
                 </span>{" "}
-                {engagement.reporting_period_start || "—"} to{" "}
-                {engagement.reporting_period_end || "—"}
+                {formatDate(engagement.reporting_period_start)} to{" "}
+                {formatDate(engagement.reporting_period_end)}
               </p>
 
               <p>
                 <span className="font-semibold text-slate-950">
                   Jurisdiction:
                 </span>{" "}
-                {organisation?.jurisdiction_code || "—"}
+                {organisation?.country_name ||
+                  organisation?.country_code ||
+                  organisation?.jurisdiction_code ||
+                  "—"}
               </p>
             </div>
           </section>
@@ -317,6 +457,13 @@ export default async function EngagementDetailPage({
                 className="rounded-full bg-[#073D7F] px-6 py-3 text-sm font-semibold text-white"
               >
                 Upload Document
+              </a>
+
+              <a
+                href={`/portal/organisations/${engagement.organisation_id}/engagements`}
+                className="rounded-full border border-[#D9E3F4] bg-white px-6 py-3 text-sm font-semibold text-[#073D7F]"
+              >
+                Engagement Register
               </a>
 
               <a

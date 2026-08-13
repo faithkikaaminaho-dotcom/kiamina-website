@@ -82,11 +82,9 @@ function formatAccountingYear({
   }
 
   return `${String(startDay).padStart(2, "0")}/${String(startMonth).padStart(
-    2,
-    "0"
+    2
   )} to ${String(endDay).padStart(2, "0")}/${String(endMonth).padStart(
-    2,
-    "0"
+    2
   )}`;
 }
 
@@ -229,7 +227,7 @@ export default async function OrganisationDetailPage({
         },
         {
           label: "Engagements",
-          href: `/portal/organisations/${organisation.id}/engagements/new`,
+          href: `/portal/organisations/${organisation.id}/engagements`,
         },
         {
           label: "Period Control",
@@ -703,9 +701,15 @@ export default async function OrganisationDetailPage({
                 </div>
 
                 <div className="mt-4 space-y-2 text-sm leading-6 text-slate-600">
-                  <div>Name: {valueOrDash(organisation.primary_contact_name)}</div>
-                  <div>Email: {valueOrDash(organisation.primary_contact_email)}</div>
-                  <div>Phone: {valueOrDash(organisation.primary_contact_phone)}</div>
+                  <div>
+                    Name: {valueOrDash(organisation.primary_contact_name)}
+                  </div>
+                  <div>
+                    Email: {valueOrDash(organisation.primary_contact_email)}
+                  </div>
+                  <div>
+                    Phone: {valueOrDash(organisation.primary_contact_phone)}
+                  </div>
                 </div>
               </div>
             </div>
