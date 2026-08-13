@@ -61,6 +61,8 @@ type LinkedDocument = {
   content_type?: string | null;
 };
 
+type AvailableDocument = LinkedDocument;
+
 type InvoiceLine = {
   product_service_id: string;
   description: string;
@@ -251,6 +253,7 @@ export default function EditSalesInvoiceForm({
   trackingCategories,
   trackingOptions,
   linkedDocuments,
+  availableDocuments,
 }: {
   organisationId: string;
   invoice: AnyRecord;
@@ -264,6 +267,7 @@ export default function EditSalesInvoiceForm({
   trackingCategories: TrackingCategory[];
   trackingOptions: TrackingOption[];
   linkedDocuments: LinkedDocument[];
+  availableDocuments: AvailableDocument[];
 }) {
   const router = useRouter();
 
@@ -303,6 +307,11 @@ export default function EditSalesInvoiceForm({
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+
+  const [documentIdToAttach, setDocumentIdToAttach] = useState("");
+  const [documentActionMessage, setDocumentActionMessage] = useState("");
+  const [documentActionError, setDocumentActionError] = useState("");
+  const [documentActionLoading, setDocumentActionLoading] = useState(false);
 
   const categoryById = useMemo(() => {
     return new Map(trackingCategories.map((category) => [category.id, category]));
@@ -406,6 +415,77 @@ export default function EditSalesInvoiceForm({
     );
   }
 
+  async function handleAttachDocument() {
+    setDocumentActionMessage("");
+    setDocumentActionError("");
+
+    if (!documentIdToAttach) {
+      setDocumentActionError("Select a document to attach.");
+      return;
+    }
+
+    setDocumentActionLoading(true);
+
+    try {
+      const response = await fetch(`/api/sales-invoices/${invoice.id}/documents`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          organisation_id: organisationId,
+          document_id: documentIdToAttach,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Unable to attach document.");
+      }
+
+      setDocumentActionMessage("Document attached successfully.");
+      setDocumentIdToAttach("");
+      router.refresh();
+    } catch (error) {
+      setDocumentActionError(
+        error instanceof Error ? error.message : "Unable to attach document."
+      );
+    } finally {
+      setDocumentActionLoading(false);
+    }
+  }
+
+  async function handleDetachDocument(documentId: string) {
+    setDocumentActionMessage("");
+    setDocumentActionError("");
+    setDocumentActionLoading(true);
+
+    try {
+      const response = await fetch(
+        `/api/sales-invoices/${invoice.id}/documents/${documentId}?organisation_id=${organisationId}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Unable to detach document.");
+      }
+
+      setDocumentActionMessage("Document detached successfully.");
+      router.refresh();
+    } catch (error) {
+      setDocumentActionError(
+        error instanceof Error ? error.message : "Unable to detach document."
+      );
+    } finally {
+      setDocumentActionLoading(false);
+    }
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -498,13 +578,60 @@ export default function EditSalesInvoiceForm({
         </h2>
 
         <p className="mt-2 text-sm leading-7 text-slate-600">
-          Supporting documents are linked using{" "}
-          <span className="font-semibold text-slate-950">
-            source_module = SALES_INVOICE
-          </span>{" "}
-          and this invoice ID. Upload and attach actions will be added in the
-          next step.
+          Attach evidence already uploaded to the organisation, such as customer
+          purchase orders, contracts, service confirmations, invoice PDFs, or
+          approval support.
         </p>
+
+        {documentActionError ? (
+          <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+            {documentActionError}
+          </div>
+        ) : null}
+
+        {documentActionMessage ? (
+          <div className="mt-4 rounded-2xl border border-green-200 bg-green-50 px-5 py-4 text-sm text-green-700">
+            {documentActionMessage}
+          </div>
+        ) : null}
+
+        <div className="mt-5 rounded-2xl border border-[#D9E3F4] bg-white p-5">
+          <label className="block">
+            <span className="text-sm font-semibold text-slate-700">
+              Attach existing document
+            </span>
+
+            <select
+              value={documentIdToAttach}
+              onChange={(event) => setDocumentIdToAttach(event.target.value)}
+              className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
+            >
+              <option value="">Select uploaded document</option>
+              {availableDocuments.map((document) => (
+                <option key={document.id} value={document.id}>
+                  {document.file_name || "Untitled document"} ·{" "}
+                  {document.document_type || "Document"} ·{" "}
+                  {formatDate(document.created_at)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <button
+            type="button"
+            onClick={handleAttachDocument}
+            disabled={documentActionLoading || !documentIdToAttach}
+            className="mt-4 rounded-full bg-[#073D7F] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {documentActionLoading ? "Working..." : "Attach Document"}
+          </button>
+
+          {availableDocuments.length === 0 ? (
+            <p className="mt-3 text-sm text-slate-500">
+              No unattached organisation documents are available yet.
+            </p>
+          ) : null}
+        </div>
 
         <div className="mt-5 space-y-3">
           {linkedDocuments.length > 0 ? (
@@ -513,14 +640,27 @@ export default function EditSalesInvoiceForm({
                 key={document.id}
                 className="rounded-2xl border border-[#D9E3F4] bg-white p-4"
               >
-                <div className="font-semibold text-[#073D7F]">
-                  {document.file_name || "Untitled document"}
-                </div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <div className="font-semibold text-[#073D7F]">
+                      {document.file_name || "Untitled document"}
+                    </div>
 
-                <div className="mt-2 text-sm text-slate-600">
-                  {document.document_type || "Document"} ·{" "}
-                  {formatStatus(document.status)} · Uploaded{" "}
-                  {formatDate(document.created_at)}
+                    <div className="mt-2 text-sm text-slate-600">
+                      {document.document_type || "Document"} ·{" "}
+                      {formatStatus(document.status)} · Uploaded{" "}
+                      {formatDate(document.created_at)}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDetachDocument(document.id)}
+                    disabled={documentActionLoading}
+                    className="rounded-full border border-red-200 bg-white px-4 py-2 text-xs font-semibold text-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Detach
+                  </button>
                 </div>
               </div>
             ))

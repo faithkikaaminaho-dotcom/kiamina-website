@@ -154,6 +154,16 @@ export default async function EditSalesInvoicePage({
     .eq("source_record_id", invoiceId)
     .order("created_at", { ascending: false });
 
+  const { data: availableDocuments } = await supabase
+    .from("documents")
+    .select(
+      "id, file_name, document_type, document_category_id, status, source_module, source_record_id, created_at, file_path, storage_path, mime_type, content_type"
+    )
+    .eq("organisation_id", id)
+    .or("source_module.is.null,source_record_id.is.null")
+    .order("created_at", { ascending: false })
+    .limit(100);
+
   const organisationName =
     organisation.trading_name || organisation.legal_name || "Organisation";
 
@@ -207,6 +217,7 @@ export default async function EditSalesInvoicePage({
           trackingCategories={trackingCategories || []}
           trackingOptions={trackingOptions || []}
           linkedDocuments={linkedDocuments || []}
+          availableDocuments={availableDocuments || []}
         />
       </section>
     </main>
