@@ -23,6 +23,8 @@ const internalRoles = [
   "OPERATIONS_ADMIN",
 ];
 
+const editableStatuses = ["DRAFT", "READY_FOR_REVIEW", "UNDER_REVIEW", "REVIEWED"];
+
 type AnyRecord = Record<string, any>;
 
 const trackingDimensionFields = [
@@ -194,6 +196,16 @@ export default async function SalesInvoiceDetailPage({
     trackingOptions = data || [];
   }
 
+  const { data: linkedDocuments } = await supabase
+    .from("documents")
+    .select(
+      "id, file_name, document_type, document_category_id, status, source_module, source_record_id, created_at, file_path, storage_path, mime_type, content_type"
+    )
+    .eq("organisation_id", id)
+    .eq("source_module", "SALES_INVOICE")
+    .eq("source_record_id", invoiceId)
+    .order("created_at", { ascending: false });
+
   const accountMap = new Map(accounts.map((account) => [account.id, account]));
   const trackingOptionMap = new Map(
     trackingOptions.map((option) => [option.id, option])
@@ -205,6 +217,10 @@ export default async function SalesInvoiceDetailPage({
   const revenueAccount = accountMap.get(invoice.revenue_account_id);
   const receivableAccount = accountMap.get(invoice.receivable_account_id);
   const taxAccount = accountMap.get(invoice.tax_account_id);
+
+  const invoiceStatus = String(invoice.status || "DRAFT").toUpperCase();
+  const canEditInvoice =
+    !invoice.posted_at && editableStatuses.includes(invoiceStatus);
 
   return (
     <main className="min-h-screen bg-[#F8FAFC]">
@@ -236,7 +252,8 @@ export default async function SalesInvoiceDetailPage({
                 <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
                   Review the full draft sales invoice for {organisationName},
                   including customer details, invoice lines, GL mapping, FX
-                  information, dimensions, and control status.
+                  information, dimensions, supporting documents, and control
+                  status.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-3">
@@ -251,6 +268,24 @@ export default async function SalesInvoiceDetailPage({
                   <span className="rounded-full bg-[#F1F1F1] px-4 py-2 text-sm font-semibold text-slate-700">
                     Invoice Date: {formatDate(invoice.invoice_date)}
                   </span>
+                </div>
+
+                <div className="mt-6 flex flex-wrap gap-3">
+                  {canEditInvoice ? (
+                    <a
+                      href={`/portal/organisations/${organisation.id}/sales-invoices/${invoice.id}/edit`}
+                      className="rounded-full bg-[#073D7F] px-6 py-3 text-sm font-semibold text-white"
+                    >
+                      Edit Draft Invoice
+                    </a>
+                  ) : null}
+
+                  <a
+                    href={`/portal/organisations/${organisation.id}/sales-invoices`}
+                    className="rounded-full border border-[#D9E3F4] bg-white px-6 py-3 text-sm font-semibold text-[#073D7F]"
+                  >
+                    Invoice Register
+                  </a>
                 </div>
               </div>
             </div>
@@ -454,6 +489,64 @@ export default async function SalesInvoiceDetailPage({
             </div>
           </section>
         </div>
+
+        <section className="mt-8 rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
+                Supporting Documents
+              </div>
+
+              <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
+                Evidence linked to this sales invoice
+              </h2>
+
+              <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600">
+                Supporting documents are linked using source module{" "}
+                <span className="font-semibold text-slate-950">
+                  SALES_INVOICE
+                </span>{" "}
+                and this invoice ID. Upload and attach controls will be added in
+                the next sales document step.
+              </p>
+            </div>
+
+            {canEditInvoice ? (
+              <a
+                href={`/portal/organisations/${organisation.id}/sales-invoices/${invoice.id}/edit`}
+                className="rounded-full border border-[#D9E3F4] bg-white px-6 py-3 text-sm font-semibold text-[#073D7F]"
+              >
+                Manage in Edit
+              </a>
+            ) : null}
+          </div>
+
+          <div className="mt-6 space-y-3">
+            {linkedDocuments && linkedDocuments.length > 0 ? (
+              linkedDocuments.map((document) => (
+                <a
+                  key={document.id}
+                  href={`/portal/documents/${document.id}`}
+                  className="block rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] p-5 transition hover:border-[#073D7F]"
+                >
+                  <div className="font-semibold text-[#073D7F]">
+                    {document.file_name || "Untitled document"}
+                  </div>
+
+                  <div className="mt-2 text-sm text-slate-600">
+                    {document.document_type || "Document"} ·{" "}
+                    {formatStatus(document.status)} · Uploaded{" "}
+                    {formatDate(document.created_at)}
+                  </div>
+                </a>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-dashed border-[#D9E3F4] bg-[#F8FAFC] p-5 text-sm text-slate-500">
+                No supporting documents are linked to this invoice yet.
+              </div>
+            )}
+          </div>
+        </section>
 
         <section className="mt-8 rounded-[2rem] border border-[#D9E3F4] bg-white shadow-sm">
           <div className="border-b border-[#D9E3F4] px-6 py-5">
