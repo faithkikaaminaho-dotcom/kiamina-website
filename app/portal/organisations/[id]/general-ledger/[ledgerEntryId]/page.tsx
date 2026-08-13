@@ -23,6 +23,16 @@ const internalRoles = [
 
 type AnyRecord = Record<string, any>;
 
+const trackingDimensionFields = [
+  { key: "class_id", label: "Class" },
+  { key: "cost_centre_id", label: "Cost Centre" },
+  { key: "department_id", label: "Department" },
+  { key: "fund_grant_id", label: "Fund / Grant" },
+  { key: "location_id", label: "Location" },
+  { key: "project_id", label: "Project" },
+  { key: "service_line_id", label: "Service Line" },
+];
+
 function formatDate(value?: string | null) {
   if (!value) return "—";
 
@@ -64,6 +74,46 @@ function formatAccount(account?: AnyRecord | null) {
   const name = account.account_name || "Unnamed account";
 
   return `${code} - ${name}`;
+}
+
+function formatTrackingOption(option?: AnyRecord | null) {
+  if (!option) return "—";
+
+  if (option.option_code) {
+    return `${option.option_code} - ${option.option_name || "Unnamed option"}`;
+  }
+
+  return option.option_name || "Unnamed option";
+}
+
+function getTrackingValue(
+  line: AnyRecord,
+  fieldKey: string,
+  trackingOptionMap: Map<string, AnyRecord>
+) {
+  const optionId = line[fieldKey];
+
+  if (!optionId) {
+    return "—";
+  }
+
+  return formatTrackingOption(trackingOptionMap.get(optionId));
+}
+
+function getPartyText({
+  customerName,
+  supplierName,
+  investorName,
+}: {
+  customerName?: string;
+  supplierName?: string;
+  investorName?: string;
+}) {
+  if (customerName) return `Customer: ${customerName}`;
+  if (supplierName) return `Supplier: ${supplierName}`;
+  if (investorName) return `Investor / Funder: ${investorName}`;
+
+  return "—";
 }
 
 export default async function GeneralLedgerEntryDetailPage({
@@ -128,10 +178,21 @@ export default async function GeneralLedgerEntryDetailPage({
   const supplierIds = lines.map((line) => line.supplier_id).filter(Boolean);
   const investorIds = lines.map((line) => line.investor_id).filter(Boolean);
 
+  const trackingOptionIds = Array.from(
+    new Set(
+      lines.flatMap((line) =>
+        trackingDimensionFields
+          .map((field) => line[field.key])
+          .filter(Boolean)
+      )
+    )
+  );
+
   let accounts: AnyRecord[] = [];
   let customers: AnyRecord[] = [];
   let suppliers: AnyRecord[] = [];
   let investors: AnyRecord[] = [];
+  let trackingOptions: AnyRecord[] = [];
 
   if (accountIds.length > 0) {
     const { data: accountRows } = await supabase
@@ -175,6 +236,16 @@ export default async function GeneralLedgerEntryDetailPage({
     investors = investorRows || [];
   }
 
+  if (trackingOptionIds.length > 0) {
+    const { data: trackingOptionRows } = await supabase
+      .from("tracking_options")
+      .select("id, option_code, option_name, tracking_category_id")
+      .eq("organisation_id", id)
+      .in("id", trackingOptionIds);
+
+    trackingOptions = trackingOptionRows || [];
+  }
+
   const accountMap = new Map(accounts.map((account) => [account.id, account]));
   const customerMap = new Map(
     customers.map((customer) => [customer.id, customer.customer_name])
@@ -184,6 +255,9 @@ export default async function GeneralLedgerEntryDetailPage({
   );
   const investorMap = new Map(
     investors.map((investor) => [investor.id, investor.investor_name])
+  );
+  const trackingOptionMap = new Map(
+    trackingOptions.map((option) => [option.id, option])
   );
 
   const organisationName =
@@ -210,7 +284,6 @@ export default async function GeneralLedgerEntryDetailPage({
   );
 
   const difference = Number((totalDebits - totalCredits).toFixed(2));
-  const baseDifference = Number((baseTotalDebits - baseTotalCredits).toFixed(2));
 
   return (
     <main className="min-h-screen bg-[#F8FAFC]">
@@ -242,7 +315,8 @@ export default async function GeneralLedgerEntryDetailPage({
                 <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
                   Review the posted ledger entry for {organisationName},
                   including source module, posting status, FX details, debit and
-                  credit lines, base currency impact, and audit control context.
+                  credit lines, base currency impact, tracking dimensions, and
+                  audit control context.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-3">
@@ -266,9 +340,7 @@ export default async function GeneralLedgerEntryDetailPage({
             </div>
 
             <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F1F1F1] p-5 text-sm text-slate-600">
-              <div className="font-semibold text-slate-950">
-                Ledger Balance
-              </div>
+              <div className="font-semibold text-slate-950">Ledger Balance</div>
 
               <div className="mt-3 grid gap-2">
                 <div>
@@ -351,27 +423,21 @@ export default async function GeneralLedgerEntryDetailPage({
 
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               <div className="rounded-2xl bg-[#F8FAFC] p-5 text-sm">
-                <div className="font-semibold text-slate-950">
-                  Entry Number
-                </div>
+                <div className="font-semibold text-slate-950">Entry Number</div>
                 <div className="mt-2 text-slate-600">
                   {ledgerEntry.entry_number || "—"}
                 </div>
               </div>
 
               <div className="rounded-2xl bg-[#F8FAFC] p-5 text-sm">
-                <div className="font-semibold text-slate-950">
-                  Source Module
-                </div>
+                <div className="font-semibold text-slate-950">Source Module</div>
                 <div className="mt-2 text-slate-600">
                   {formatStatus(ledgerEntry.source_module)}
                 </div>
               </div>
 
               <div className="rounded-2xl bg-[#F8FAFC] p-5 text-sm">
-                <div className="font-semibold text-slate-950">
-                  Entry Date
-                </div>
+                <div className="font-semibold text-slate-950">Entry Date</div>
                 <div className="mt-2 text-slate-600">
                   {formatDate(ledgerEntry.entry_date)}
                 </div>
@@ -487,28 +553,52 @@ export default async function GeneralLedgerEntryDetailPage({
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-[#D9E3F4]">
+              <table className="min-w-[1900px] divide-y divide-[#D9E3F4]">
                 <thead className="bg-[#F8FAFC]">
                   <tr>
-                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                       Line
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                       Account
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      Description / Party
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Description
                     </th>
-                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Party
+                    </th>
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Class
+                    </th>
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Cost Centre
+                    </th>
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Department
+                    </th>
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Fund / Grant
+                    </th>
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Location
+                    </th>
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Project
+                    </th>
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Service Line
+                    </th>
+                    <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                       Debit
                     </th>
-                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                       Credit
                     </th>
-                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                       Base Debit
                     </th>
-                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                       Base Credit
                     </th>
                   </tr>
@@ -522,13 +612,19 @@ export default async function GeneralLedgerEntryDetailPage({
                     const supplierName = supplierMap.get(line.supplier_id || "");
                     const investorName = investorMap.get(line.investor_id || "");
 
+                    const partyText = getPartyText({
+                      customerName,
+                      supplierName,
+                      investorName,
+                    });
+
                     return (
                       <tr key={line.id} className="hover:bg-[#F8FAFC]">
-                        <td className="whitespace-nowrap px-6 py-5 text-sm font-semibold text-slate-950">
+                        <td className="whitespace-nowrap px-5 py-5 text-sm font-semibold text-slate-950">
                           {line.line_number}
                         </td>
 
-                        <td className="whitespace-nowrap px-6 py-5">
+                        <td className="min-w-[260px] px-5 py-5">
                           <div className="text-sm font-semibold text-slate-950">
                             {formatAccount(account)}
                           </div>
@@ -545,29 +641,51 @@ export default async function GeneralLedgerEntryDetailPage({
                           </div>
                         </td>
 
-                        <td className="px-6 py-5 text-sm text-slate-600">
-                          <div>
-                            {line.description || "No line description"}
-                          </div>
+                        <td className="min-w-[220px] px-5 py-5 text-sm text-slate-600">
+                          <div>{line.description || "No line description"}</div>
 
-                          <div className="mt-2 space-y-1 text-xs text-slate-500">
-                            <div>
-                              Source: {formatStatus(line.source_module)}
-                            </div>
-
-                            {customerName ? <div>Customer: {customerName}</div> : null}
-                            {supplierName ? <div>Supplier: {supplierName}</div> : null}
-                            {investorName ? (
-                              <div>Investor / Funder: {investorName}</div>
-                            ) : null}
-
-                            {!customerName && !supplierName && !investorName ? (
-                              <div>No party linked</div>
-                            ) : null}
+                          <div className="mt-2 text-xs text-slate-500">
+                            Source: {formatStatus(line.source_module)}
                           </div>
                         </td>
 
-                        <td className="whitespace-nowrap px-6 py-5 text-right text-sm font-semibold text-slate-950">
+                        <td className="min-w-[220px] px-5 py-5 text-sm text-slate-600">
+                          {partyText}
+                        </td>
+
+                        <td className="min-w-[180px] px-5 py-5 text-sm text-slate-600">
+                          {getTrackingValue(line, "class_id", trackingOptionMap)}
+                        </td>
+
+                        <td className="min-w-[180px] px-5 py-5 text-sm text-slate-600">
+                          {getTrackingValue(line, "cost_centre_id", trackingOptionMap)}
+                        </td>
+
+                        <td className="min-w-[180px] px-5 py-5 text-sm text-slate-600">
+                          {getTrackingValue(line, "department_id", trackingOptionMap)}
+                        </td>
+
+                        <td className="min-w-[220px] px-5 py-5 text-sm text-slate-600">
+                          {getTrackingValue(line, "fund_grant_id", trackingOptionMap)}
+                        </td>
+
+                        <td className="min-w-[180px] px-5 py-5 text-sm text-slate-600">
+                          {getTrackingValue(line, "location_id", trackingOptionMap)}
+                        </td>
+
+                        <td className="min-w-[180px] px-5 py-5 text-sm text-slate-600">
+                          {getTrackingValue(line, "project_id", trackingOptionMap)}
+                        </td>
+
+                        <td className="min-w-[180px] px-5 py-5 text-sm text-slate-600">
+                          {getTrackingValue(
+                            line,
+                            "service_line_id",
+                            trackingOptionMap
+                          )}
+                        </td>
+
+                        <td className="whitespace-nowrap px-5 py-5 text-right text-sm font-semibold text-slate-950">
                           {Number(line.debit_amount || 0) > 0
                             ? formatMoney(
                                 ledgerEntry.currency_code,
@@ -576,7 +694,7 @@ export default async function GeneralLedgerEntryDetailPage({
                             : "—"}
                         </td>
 
-                        <td className="whitespace-nowrap px-6 py-5 text-right text-sm font-semibold text-slate-950">
+                        <td className="whitespace-nowrap px-5 py-5 text-right text-sm font-semibold text-slate-950">
                           {Number(line.credit_amount || 0) > 0
                             ? formatMoney(
                                 ledgerEntry.currency_code,
@@ -585,7 +703,7 @@ export default async function GeneralLedgerEntryDetailPage({
                             : "—"}
                         </td>
 
-                        <td className="whitespace-nowrap px-6 py-5 text-right text-sm font-semibold text-slate-950">
+                        <td className="whitespace-nowrap px-5 py-5 text-right text-sm font-semibold text-slate-950">
                           {Number(line.base_debit_amount || 0) > 0
                             ? formatMoney(
                                 organisation.base_currency_code,
@@ -594,7 +712,7 @@ export default async function GeneralLedgerEntryDetailPage({
                             : "—"}
                         </td>
 
-                        <td className="whitespace-nowrap px-6 py-5 text-right text-sm font-semibold text-slate-950">
+                        <td className="whitespace-nowrap px-5 py-5 text-right text-sm font-semibold text-slate-950">
                           {Number(line.base_credit_amount || 0) > 0
                             ? formatMoney(
                                 organisation.base_currency_code,
@@ -607,27 +725,38 @@ export default async function GeneralLedgerEntryDetailPage({
                   })}
 
                   <tr className="bg-[#F8FAFC]">
-                    <td className="px-6 py-5 text-sm font-semibold text-slate-950">
+                    <td className="px-5 py-5 text-sm font-semibold text-slate-950">
                       Total
                     </td>
 
-                    <td className="px-6 py-5" />
-                    <td className="px-6 py-5" />
+                    <td className="px-5 py-5" />
+                    <td className="px-5 py-5" />
+                    <td className="px-5 py-5" />
+                    <td className="px-5 py-5" />
+                    <td className="px-5 py-5" />
+                    <td className="px-5 py-5" />
+                    <td className="px-5 py-5" />
+                    <td className="px-5 py-5" />
+                    <td className="px-5 py-5" />
+                    <td className="px-5 py-5" />
 
-                    <td className="whitespace-nowrap px-6 py-5 text-right text-sm font-semibold text-slate-950">
+                    <td className="whitespace-nowrap px-5 py-5 text-right text-sm font-semibold text-slate-950">
                       {formatMoney(ledgerEntry.currency_code, totalDebits)}
                     </td>
 
-                    <td className="whitespace-nowrap px-6 py-5 text-right text-sm font-semibold text-slate-950">
+                    <td className="whitespace-nowrap px-5 py-5 text-right text-sm font-semibold text-slate-950">
                       {formatMoney(ledgerEntry.currency_code, totalCredits)}
                     </td>
 
-                    <td className="whitespace-nowrap px-6 py-5 text-right text-sm font-semibold text-slate-950">
+                    <td className="whitespace-nowrap px-5 py-5 text-right text-sm font-semibold text-slate-950">
                       {formatMoney(organisation.base_currency_code, baseTotalDebits)}
                     </td>
 
-                    <td className="whitespace-nowrap px-6 py-5 text-right text-sm font-semibold text-slate-950">
-                      {formatMoney(organisation.base_currency_code, baseTotalCredits)}
+                    <td className="whitespace-nowrap px-5 py-5 text-right text-sm font-semibold text-slate-950">
+                      {formatMoney(
+                        organisation.base_currency_code,
+                        baseTotalCredits
+                      )}
                     </td>
                   </tr>
                 </tbody>
@@ -654,8 +783,8 @@ export default async function GeneralLedgerEntryDetailPage({
               <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600">
                 This page displays the General Ledger record created from a
                 controlled posting workflow. It should be used as the source for
-                trial balance, financial statements, management reports,
-                account analysis, and audit trail review.
+                trial balance, financial statements, management reports, account
+                analysis, and audit trail review.
               </p>
 
               <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#F1F1F1] px-4 py-2 text-sm font-semibold text-[#073D7F]">

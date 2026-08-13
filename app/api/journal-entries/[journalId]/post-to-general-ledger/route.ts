@@ -27,6 +27,14 @@ type JournalLine = {
   customer_id: string | null;
   supplier_id: string | null;
   investor_id: string | null;
+  department_id: string | null;
+  location_id: string | null;
+  project_id: string | null;
+  cost_centre_id: string | null;
+  class_id: string | null;
+  fund_grant_id: string | null;
+  service_line_id: string | null;
+  tracking_data?: Record<string, unknown> | null;
 };
 
 type LockedAccountingPeriod = {
@@ -39,6 +47,20 @@ type LockedAccountingPeriod = {
 
 function toMoney(value: unknown) {
   return Number(Number(value || 0).toFixed(2));
+}
+
+function buildTrackingData(line: JournalLine) {
+  const trackingData: Record<string, string> = {};
+
+  if (line.department_id) trackingData.department_id = line.department_id;
+  if (line.location_id) trackingData.location_id = line.location_id;
+  if (line.project_id) trackingData.project_id = line.project_id;
+  if (line.cost_centre_id) trackingData.cost_centre_id = line.cost_centre_id;
+  if (line.class_id) trackingData.class_id = line.class_id;
+  if (line.fund_grant_id) trackingData.fund_grant_id = line.fund_grant_id;
+  if (line.service_line_id) trackingData.service_line_id = line.service_line_id;
+
+  return Object.keys(trackingData).length > 0 ? trackingData : null;
 }
 
 export async function POST(
@@ -175,7 +197,9 @@ export async function POST(
 
     const { data: journalLines, error: linesError } = await supabase
       .from("journal_entry_lines")
-      .select("*")
+      .select(
+        "id, organisation_id, journal_entry_id, line_number, account_id, description, debit_amount, credit_amount, customer_id, supplier_id, investor_id, department_id, location_id, project_id, cost_centre_id, class_id, fund_grant_id, service_line_id, tracking_data"
+      )
       .eq("journal_entry_id", journal.id)
       .eq("organisation_id", journal.organisation_id)
       .order("line_number", { ascending: true });
@@ -304,6 +328,8 @@ export async function POST(
     const sourceReference =
       journal.journal_number || journal.reference_number || journal.id;
 
+    const now = new Date().toISOString();
+
     const { data: ledgerEntry, error: ledgerEntryError } = await supabase
       .from("general_ledger_entries")
       .insert({
@@ -331,7 +357,7 @@ export async function POST(
         total_credits: totalCredits,
 
         status: "POSTED",
-        posted_at: new Date().toISOString(),
+        posted_at: now,
         posted_by: user.id,
 
         created_by: user.id,
@@ -353,6 +379,7 @@ export async function POST(
     const ledgerLines = lines.map((line) => {
       const debitAmount = toMoney(line.debit_amount);
       const creditAmount = toMoney(line.credit_amount);
+      const trackingData = line.tracking_data || buildTrackingData(line);
 
       return {
         general_ledger_entry_id: ledgerEntry.id,
@@ -373,6 +400,15 @@ export async function POST(
         customer_id: line.customer_id || null,
         supplier_id: line.supplier_id || null,
         investor_id: line.investor_id || null,
+
+        department_id: line.department_id || null,
+        location_id: line.location_id || null,
+        project_id: line.project_id || null,
+        cost_centre_id: line.cost_centre_id || null,
+        class_id: line.class_id || null,
+        fund_grant_id: line.fund_grant_id || null,
+        service_line_id: line.service_line_id || null,
+        tracking_data: trackingData,
 
         source_module: "JOURNAL_ENTRY",
         source_record_id: journal.id,
@@ -403,7 +439,7 @@ export async function POST(
       .from("journal_entries")
       .update({
         status: "POSTED",
-        posted_at: new Date().toISOString(),
+        posted_at: now,
         posted_by: user.id,
         updated_by: user.id,
       })
@@ -436,6 +472,7 @@ export async function POST(
         total_debits: totalDebits,
         total_credits: totalCredits,
         source_module: "JOURNAL_ENTRY",
+        tracking_dimensions_copied: true,
       },
     });
 
