@@ -135,13 +135,13 @@ export default async function TrackingDimensionsPage({
     .order("category_code", { ascending: true });
 
   const { data: options } = await supabase
-    .from("tracking_options")
-    .select(
-      "id, organisation_id, tracking_category_id, option_code, option_name, description, is_active"
-    )
-    .eq("organisation_id", id)
-    .eq("is_active", true)
-    .order("option_name", { ascending: true });
+  .from("tracking_options")
+  .select(
+    "id, organisation_id, tracking_category_id, option_code, option_name, description, is_active"
+  )
+  .eq("organisation_id", id)
+  .order("is_active", { ascending: false })
+  .order("option_name", { ascending: true });
 
   const organisationName =
     organisation.trading_name || organisation.legal_name || "Organisation";

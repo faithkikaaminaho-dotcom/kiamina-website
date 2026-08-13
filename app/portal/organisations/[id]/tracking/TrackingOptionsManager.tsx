@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Check, Pencil, Plus, RotateCcw, X } from "lucide-react";
 
 type TrackingCategory = {
   id: string;
@@ -36,10 +36,19 @@ export default function TrackingOptionsManager({
   const [activeCategoryId, setActiveCategoryId] = useState(
     categories[0]?.id || ""
   );
+
   const [optionName, setOptionName] = useState("");
   const [optionCode, setOptionCode] = useState("");
   const [description, setDescription] = useState("");
+
+  const [editingOptionId, setEditingOptionId] = useState("");
+  const [editOptionName, setEditOptionName] = useState("");
+  const [editOptionCode, setEditOptionCode] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+
   const [submitting, setSubmitting] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [statusChangingId, setStatusChangingId] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
   const activeCategory = categories.find(
@@ -49,6 +58,22 @@ export default function TrackingOptionsManager({
   const activeOptions = options.filter(
     (option) => option.tracking_category_id === activeCategoryId
   );
+
+  function startEdit(option: TrackingOption) {
+    setEditingOptionId(option.id);
+    setEditOptionName(option.option_name || "");
+    setEditOptionCode(option.option_code || "");
+    setEditDescription(option.description || "");
+    setErrorMessage("");
+  }
+
+  function cancelEdit() {
+    setEditingOptionId("");
+    setEditOptionName("");
+    setEditOptionCode("");
+    setEditDescription("");
+    setErrorMessage("");
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -97,6 +122,86 @@ export default function TrackingOptionsManager({
     }
   }
 
+  async function handleEditSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!editingOptionId) {
+      return;
+    }
+
+    setSavingEdit(true);
+    setErrorMessage("");
+
+    try {
+      const response = await fetch(`/api/tracking-options/${editingOptionId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          option_name: editOptionName,
+          option_code: editOptionCode || null,
+          description: editDescription || null,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Unable to update tracking option.");
+      }
+
+      cancelEdit();
+      router.refresh();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to update tracking option."
+      );
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  async function handleStatusChange(option: TrackingOption, isActive: boolean) {
+    setStatusChangingId(option.id);
+    setErrorMessage("");
+
+    try {
+      const response = await fetch(`/api/tracking-options/${option.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          is_active: isActive,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          result.error ||
+            (isActive
+              ? "Unable to reactivate tracking option."
+              : "Unable to deactivate tracking option.")
+        );
+      }
+
+      router.refresh();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to update tracking option status."
+      );
+    } finally {
+      setStatusChangingId("");
+    }
+  }
+
   return (
     <div className="grid gap-6 lg:grid-cols-[0.36fr_0.64fr]">
       <div className="rounded-[1.5rem] border border-[#D9E3F4] bg-white p-5">
@@ -109,7 +214,10 @@ export default function TrackingOptionsManager({
             <button
               key={category.id}
               type="button"
-              onClick={() => setActiveCategoryId(category.id)}
+              onClick={() => {
+                setActiveCategoryId(category.id);
+                cancelEdit();
+              }}
               className={
                 category.id === activeCategoryId
                   ? "w-full rounded-2xl bg-[#073D7F] px-4 py-3 text-left text-sm font-semibold text-white"
@@ -123,6 +231,12 @@ export default function TrackingOptionsManager({
       </div>
 
       <div className="space-y-6">
+        {errorMessage ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+            {errorMessage}
+          </div>
+        ) : null}
+
         <section className="rounded-[1.5rem] border border-[#D9E3F4] bg-white p-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -153,36 +267,160 @@ export default function TrackingOptionsManager({
 
           <div className="mt-6 grid gap-3 md:grid-cols-2">
             {activeOptions.length > 0 ? (
-              activeOptions.map((option) => (
-                <div
-                  key={option.id}
-                  className="rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] p-4"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="font-semibold text-slate-950">
-                        {option.option_name}
+              activeOptions.map((option) => {
+                const isEditing = editingOptionId === option.id;
+
+                if (isEditing) {
+                  return (
+                    <form
+                      key={option.id}
+                      onSubmit={handleEditSubmit}
+                      className="rounded-2xl border border-[#073D7F] bg-white p-4 md:col-span-2"
+                    >
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <label className="block">
+                          <span className="text-sm font-semibold text-slate-700">
+                            Option Name
+                          </span>
+                          <input
+                            value={editOptionName}
+                            onChange={(event) =>
+                              setEditOptionName(event.target.value)
+                            }
+                            required
+                            className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
+                          />
+                        </label>
+
+                        <label className="block">
+                          <span className="text-sm font-semibold text-slate-700">
+                            Option Code
+                          </span>
+                          <input
+                            value={editOptionCode}
+                            onChange={(event) =>
+                              setEditOptionCode(event.target.value)
+                            }
+                            className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F]"
+                          />
+                        </label>
                       </div>
 
-                      {option.option_code ? (
-                        <div className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#6491DE]">
-                          {option.option_code}
+                      <label className="mt-4 block">
+                        <span className="text-sm font-semibold text-slate-700">
+                          Description
+                        </span>
+                        <textarea
+                          value={editDescription}
+                          onChange={(event) =>
+                            setEditDescription(event.target.value)
+                          }
+                          rows={3}
+                          className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm leading-7 outline-none focus:border-[#073D7F]"
+                        />
+                      </label>
+
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <button
+                          type="submit"
+                          disabled={savingEdit}
+                          className="inline-flex items-center gap-2 rounded-full bg-[#073D7F] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Check className="h-4 w-4" />
+                          {savingEdit ? "Saving..." : "Save Changes"}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={cancelEdit}
+                          className="inline-flex items-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-5 py-3 text-sm font-semibold text-[#073D7F]"
+                        >
+                          <X className="h-4 w-4" />
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  );
+                }
+
+                return (
+                  <div
+                    key={option.id}
+                    className={
+                      option.is_active
+                        ? "rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] p-4"
+                        : "rounded-2xl border border-[#D9E3F4] bg-slate-50 p-4 opacity-70"
+                    }
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="font-semibold text-slate-950">
+                          {option.option_name}
                         </div>
-                      ) : null}
+
+                        {option.option_code ? (
+                          <div className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#6491DE]">
+                            {option.option_code}
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <span
+                        className={
+                          option.is_active
+                            ? "rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200"
+                            : "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200"
+                        }
+                      >
+                        {option.is_active ? "Active" : "Inactive"}
+                      </span>
                     </div>
 
-                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
-                      Active
-                    </span>
-                  </div>
+                    {option.description ? (
+                      <p className="mt-3 text-sm leading-6 text-slate-600">
+                        {option.description}
+                      </p>
+                    ) : null}
 
-                  {option.description ? (
-                    <p className="mt-3 text-sm leading-6 text-slate-600">
-                      {option.description}
-                    </p>
-                  ) : null}
-                </div>
-              ))
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => startEdit(option)}
+                        className="inline-flex items-center gap-2 rounded-full border border-[#D9E3F4] bg-white px-4 py-2 text-xs font-semibold text-[#073D7F]"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </button>
+
+                      {option.is_active ? (
+                        <button
+                          type="button"
+                          disabled={statusChangingId === option.id}
+                          onClick={() => handleStatusChange(option, false)}
+                          className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-xs font-semibold text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                          {statusChangingId === option.id
+                            ? "Updating..."
+                            : "Deactivate"}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={statusChangingId === option.id}
+                          onClick={() => handleStatusChange(option, true)}
+                          className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          {statusChangingId === option.id
+                            ? "Updating..."
+                            : "Reactivate"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
             ) : (
               <div className="rounded-2xl border border-dashed border-[#D9E3F4] bg-[#F8FAFC] p-5 text-sm text-slate-500 md:col-span-2">
                 No options created yet for this category.
@@ -201,18 +439,8 @@ export default function TrackingOptionsManager({
               <div className="font-semibold text-slate-950">
                 Add Tracking Option
               </div>
-              <div className="text-sm text-slate-500">
-                Add a department, location, project, cost centre, class, fund,
-                grant, or service line.
-              </div>
             </div>
           </div>
-
-          {errorMessage ? (
-            <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
-              {errorMessage}
-            </div>
-          ) : null}
 
           <form onSubmit={handleSubmit} className="mt-6 grid gap-4">
             <label className="block">
