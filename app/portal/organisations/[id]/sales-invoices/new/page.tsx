@@ -62,59 +62,61 @@ export default async function NewSalesInvoicePage({
 
   const { data: productsServices } = await supabase
     .from("products_services")
-    .select("id, item_name, unit_price, currency_code, income_account_id, tax_account_id")
+    .select(
+      "id, item_name, unit_price, currency_code, income_account_id, tax_account_id"
+    )
     .eq("organisation_id", id)
     .eq("is_active", true)
     .order("item_name", { ascending: true });
 
   const { data: revenueAccounts } = await supabase
-  .from("chart_of_accounts")
-  .select("id, account_code, account_name, account_type, account_subtype")
-  .eq("organisation_id", id)
-  .eq("is_active", true)
-  .eq("account_type", "INCOME")
-  .in("account_subtype", ["OPERATING_INCOME", "DISCONTINUED_OPERATIONS"])
-  .order("account_code", { ascending: true });
+    .from("chart_of_accounts")
+    .select("id, account_code, account_name, account_type, account_subtype")
+    .eq("organisation_id", id)
+    .eq("is_active", true)
+    .eq("account_type", "INCOME")
+    .in("account_subtype", ["OPERATING_INCOME", "DISCONTINUED_OPERATIONS"])
+    .order("account_code", { ascending: true });
 
   const { data: receivableAccounts } = await supabase
-  .from("chart_of_accounts")
-  .select(
-    "id, account_code, account_name, account_type, account_subtype, fs_line_item, management_report_category, is_control_account"
-  )
-  .eq("organisation_id", id)
-  .eq("is_active", true)
-  .eq("account_type", "ASSET")
-  .eq("account_subtype", "CURRENT_ASSET")
-  .or(
-    "fs_line_item.ilike.%receivable%,management_report_category.ilike.%receivable%,is_control_account.eq.true"
-  )
-  .order("account_code", { ascending: true });
+    .from("chart_of_accounts")
+    .select(
+      "id, account_code, account_name, account_type, account_subtype, fs_line_item, management_report_category, is_control_account"
+    )
+    .eq("organisation_id", id)
+    .eq("is_active", true)
+    .eq("account_type", "ASSET")
+    .eq("account_subtype", "CURRENT_ASSET")
+    .or(
+      "fs_line_item.ilike.%receivable%,management_report_category.ilike.%receivable%,is_control_account.eq.true"
+    )
+    .order("account_code", { ascending: true });
 
   const { data: taxAccounts } = await supabase
-  .from("chart_of_accounts")
-  .select(
-    "id, account_code, account_name, account_type, account_subtype, fs_line_item, tax_relevant"
-  )
-  .eq("organisation_id", id)
-  .eq("is_active", true)
-  .or(
-    "tax_relevant.eq.true,account_subtype.eq.INCOME_TAX,fs_line_item.ilike.%tax%"
-  )
-  .order("account_code", { ascending: true });
-
-  const { data: accountingPeriods } = await supabase
-  .from("accounting_periods")
-  .select("id, name, start_date, end_date, period_type")
-  .eq("organisation_id", id)
-  .not("name", "ilike", "%management%")
-  .not("name", "ilike", "%report%")
-  .order("start_date", { ascending: false });
-
-  const { data: engagements } = await supabase
-    .from("engagements")
-    .select("id, name, engagement_type")
+    .from("chart_of_accounts")
+    .select(
+      "id, account_code, account_name, account_type, account_subtype, fs_line_item, tax_relevant"
+    )
     .eq("organisation_id", id)
-    .order("created_at", { ascending: false });
+    .eq("is_active", true)
+    .or(
+      "tax_relevant.eq.true,account_subtype.eq.INCOME_TAX,fs_line_item.ilike.%tax%"
+    )
+    .order("account_code", { ascending: true });
+
+  const { data: trackingCategories } = await supabase
+    .from("tracking_categories")
+    .select("id, category_code, category_name, is_active")
+    .eq("organisation_id", id)
+    .or("is_active.eq.true,is_active.is.null")
+    .order("category_name", { ascending: true });
+
+  const { data: trackingOptions } = await supabase
+    .from("tracking_options")
+    .select("id, tracking_category_id, option_code, option_name, is_active")
+    .eq("organisation_id", id)
+    .or("is_active.eq.true,is_active.is.null")
+    .order("option_name", { ascending: true });
 
   const organisationName =
     organisation.trading_name || organisation.legal_name || "Organisation";
@@ -146,10 +148,10 @@ export default async function NewSalesInvoicePage({
               </h1>
 
               <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
-                Create a draft sales invoice for {organisationName}. This
-                supports revenue capture, receivables tracking, customer
-                statements, and management reporting. It will not post to the
-                ledger until a posting workflow is added.
+                Create a draft sales invoice for {organisationName}. Dimensions
+                are captured at invoice line level for future sales analysis by
+                department, location, project, cost centre, class, fund/grant,
+                and service line.
               </p>
             </div>
           </div>
@@ -165,8 +167,8 @@ export default async function NewSalesInvoicePage({
           revenueAccounts={revenueAccounts || []}
           receivableAccounts={receivableAccounts || []}
           taxAccounts={taxAccounts || []}
-          accountingPeriods={accountingPeriods || []}
-          engagements={engagements || []}
+          trackingCategories={trackingCategories || []}
+          trackingOptions={trackingOptions || []}
         />
       </section>
     </main>

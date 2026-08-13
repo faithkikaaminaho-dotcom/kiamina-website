@@ -4,6 +4,7 @@ import {
   CheckCircle,
   Coins,
   FileText,
+  MapPinned,
   ReceiptText,
   ShieldCheck,
 } from "lucide-react";
@@ -23,6 +24,16 @@ const internalRoles = [
 ];
 
 type AnyRecord = Record<string, any>;
+
+const trackingDimensionFields = [
+  { key: "class_id", label: "Class" },
+  { key: "cost_centre_id", label: "Cost Centre" },
+  { key: "department_id", label: "Department" },
+  { key: "fund_grant_id", label: "Fund / Grant" },
+  { key: "location_id", label: "Location" },
+  { key: "project_id", label: "Project" },
+  { key: "service_line_id", label: "Service Line" },
+];
 
 function formatDate(value?: string | null) {
   if (!value) return "—";
@@ -65,6 +76,14 @@ function formatAccount(account?: AnyRecord | null) {
   const name = account.account_name || "Unnamed account";
 
   return `${code} - ${name}`;
+}
+
+function formatTrackingOption(option?: AnyRecord | null) {
+  if (!option) return "—";
+
+  const code = option.option_code ? `${option.option_code} - ` : "";
+
+  return `${code}${option.option_name || "Unnamed option"}`;
 }
 
 export default async function SalesInvoiceDetailPage({
@@ -129,12 +148,14 @@ export default async function SalesInvoiceDetailPage({
     .eq("organisation_id", id)
     .order("created_at", { ascending: true });
 
+  const invoiceLines = lines || [];
+
   const accountIds = [
     invoice.revenue_account_id,
     invoice.receivable_account_id,
     invoice.tax_account_id,
-    ...(lines || []).map((line) => line.revenue_account_id),
-    ...(lines || []).map((line) => line.tax_account_id),
+    ...invoiceLines.map((line) => line.revenue_account_id),
+    ...invoiceLines.map((line) => line.tax_account_id),
   ].filter(Boolean);
 
   let accounts: AnyRecord[] = [];
@@ -151,7 +172,32 @@ export default async function SalesInvoiceDetailPage({
     accounts = chartAccounts || [];
   }
 
+  const trackingOptionIds = Array.from(
+    new Set(
+      invoiceLines.flatMap((line) =>
+        trackingDimensionFields
+          .map((field) => line[field.key])
+          .filter(Boolean)
+      )
+    )
+  );
+
+  let trackingOptions: AnyRecord[] = [];
+
+  if (trackingOptionIds.length > 0) {
+    const { data } = await supabase
+      .from("tracking_options")
+      .select("id, option_code, option_name, tracking_category_id")
+      .eq("organisation_id", id)
+      .in("id", trackingOptionIds);
+
+    trackingOptions = data || [];
+  }
+
   const accountMap = new Map(accounts.map((account) => [account.id, account]));
+  const trackingOptionMap = new Map(
+    trackingOptions.map((option) => [option.id, option])
+  );
 
   const organisationName =
     organisation.trading_name || organisation.legal_name || "Organisation";
@@ -159,8 +205,6 @@ export default async function SalesInvoiceDetailPage({
   const revenueAccount = accountMap.get(invoice.revenue_account_id);
   const receivableAccount = accountMap.get(invoice.receivable_account_id);
   const taxAccount = accountMap.get(invoice.tax_account_id);
-
-  const invoiceLines = lines || [];
 
   return (
     <main className="min-h-screen bg-[#F8FAFC]">
@@ -192,7 +236,7 @@ export default async function SalesInvoiceDetailPage({
                 <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
                   Review the full draft sales invoice for {organisationName},
                   including customer details, invoice lines, GL mapping, FX
-                  information, and control status.
+                  information, dimensions, and control status.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-3">
@@ -341,7 +385,7 @@ export default async function SalesInvoiceDetailPage({
             <div className="flex items-center gap-3">
               <Coins className="h-5 w-5 text-[#073D7F]" />
               <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
-                GL & FX Mapping
+                Header GL & FX Mapping
               </div>
             </div>
 
@@ -402,7 +446,9 @@ export default async function SalesInvoiceDetailPage({
                 </div>
 
                 <div className="mt-4 inline-flex rounded-full bg-[#F1F1F1] px-3 py-1 text-xs font-semibold text-[#073D7F]">
-                  {invoice.exchange_rate_is_locked ? "FX Rate Locked" : "FX Rate Not Locked"}
+                  {invoice.exchange_rate_is_locked
+                    ? "FX Rate Locked"
+                    : "FX Rate Not Locked"}
                 </div>
               </div>
             </div>
@@ -416,7 +462,7 @@ export default async function SalesInvoiceDetailPage({
             </div>
 
             <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
-              Products and services billed
+              Products, services, GL accounts, and dimensions
             </h2>
           </div>
 
@@ -426,7 +472,7 @@ export default async function SalesInvoiceDetailPage({
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-[#D9E3F4]">
+              <table className="min-w-[2600px] divide-y divide-[#D9E3F4]">
                 <thead className="bg-[#F8FAFC]">
                   <tr>
                     <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
@@ -451,7 +497,34 @@ export default async function SalesInvoiceDetailPage({
                       Total
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      GL Mapping
+                      Revenue Account
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Tax Account
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Receivable Account
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Class
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Cost Centre
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Department
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Fund / Grant
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Location
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Project
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Service Line
                     </th>
                   </tr>
                 </thead>
@@ -499,20 +572,58 @@ export default async function SalesInvoiceDetailPage({
                           {formatMoney(invoice.currency_code, line.line_total)}
                         </td>
 
-                        <td className="min-w-[260px] px-6 py-5 text-sm text-slate-600">
-                          <div>
-                            <span className="font-semibold text-slate-950">
-                              Revenue:
-                            </span>{" "}
-                            {formatAccount(lineRevenueAccount)}
-                          </div>
+                        <td className="min-w-[220px] px-6 py-5 text-sm text-slate-600">
+                          {formatAccount(lineRevenueAccount)}
+                        </td>
 
-                          <div className="mt-1">
-                            <span className="font-semibold text-slate-950">
-                              Tax:
-                            </span>{" "}
-                            {formatAccount(lineTaxAccount)}
-                          </div>
+                        <td className="min-w-[220px] px-6 py-5 text-sm text-slate-600">
+                          {formatAccount(lineTaxAccount)}
+                        </td>
+
+                        <td className="min-w-[220px] px-6 py-5 text-sm text-slate-600">
+                          {formatAccount(receivableAccount)}
+                        </td>
+
+                        <td className="min-w-[180px] px-6 py-5 text-sm text-slate-600">
+                          {formatTrackingOption(
+                            trackingOptionMap.get(line.class_id)
+                          )}
+                        </td>
+
+                        <td className="min-w-[180px] px-6 py-5 text-sm text-slate-600">
+                          {formatTrackingOption(
+                            trackingOptionMap.get(line.cost_centre_id)
+                          )}
+                        </td>
+
+                        <td className="min-w-[180px] px-6 py-5 text-sm text-slate-600">
+                          {formatTrackingOption(
+                            trackingOptionMap.get(line.department_id)
+                          )}
+                        </td>
+
+                        <td className="min-w-[180px] px-6 py-5 text-sm text-slate-600">
+                          {formatTrackingOption(
+                            trackingOptionMap.get(line.fund_grant_id)
+                          )}
+                        </td>
+
+                        <td className="min-w-[180px] px-6 py-5 text-sm text-slate-600">
+                          {formatTrackingOption(
+                            trackingOptionMap.get(line.location_id)
+                          )}
+                        </td>
+
+                        <td className="min-w-[180px] px-6 py-5 text-sm text-slate-600">
+                          {formatTrackingOption(
+                            trackingOptionMap.get(line.project_id)
+                          )}
+                        </td>
+
+                        <td className="min-w-[180px] px-6 py-5 text-sm text-slate-600">
+                          {formatTrackingOption(
+                            trackingOptionMap.get(line.service_line_id)
+                          )}
                         </td>
                       </tr>
                     );
@@ -521,6 +632,30 @@ export default async function SalesInvoiceDetailPage({
               </table>
             </div>
           )}
+        </section>
+
+        <section className="mt-8 rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">
+          <div className="flex items-start gap-4">
+            <div className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#F1F1F1] text-[#073D7F]">
+              <MapPinned className="h-5 w-5" />
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold uppercase tracking-[0.24em] text-[#6491DE]">
+                Sales Dimensions
+              </div>
+
+              <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
+                Line-level reporting classification
+              </h2>
+
+              <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600">
+                Sales invoice dimensions are captured at line level so future
+                sales reports can analyse revenue by department, location,
+                project, cost centre, class, fund/grant, and service line.
+              </p>
+            </div>
+          </div>
         </section>
 
         <section className="mt-8 rounded-[2rem] border border-[#D9E3F4] bg-white p-8 shadow-sm">

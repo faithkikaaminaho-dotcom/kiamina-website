@@ -23,6 +23,14 @@ type InvoiceLineInput = {
   tax_rate?: number | string | null;
   revenue_account_id?: string | null;
   tax_account_id?: string | null;
+  department_id?: string | null;
+  location_id?: string | null;
+  project_id?: string | null;
+  cost_centre_id?: string | null;
+  class_id?: string | null;
+  fund_grant_id?: string | null;
+  service_line_id?: string | null;
+  tracking_data?: Record<string, unknown> | null;
 };
 
 function toNumber(value: unknown, fallback = 0) {
@@ -33,6 +41,11 @@ function toNumber(value: unknown, fallback = 0) {
   const numericValue = Number(value);
 
   return Number.isFinite(numericValue) ? numericValue : fallback;
+}
+
+function cleanId(value: unknown) {
+  const text = value ? String(value).trim() : "";
+  return text.length > 0 ? text : null;
 }
 
 function calculateLine(line: InvoiceLineInput) {
@@ -54,6 +67,30 @@ function calculateLine(line: InvoiceLineInput) {
     lineTotal,
     netAmount,
   };
+}
+
+function buildTrackingData(line: InvoiceLineInput) {
+  const trackingData: Record<string, string> = {};
+
+  const fields = [
+    "department_id",
+    "location_id",
+    "project_id",
+    "cost_centre_id",
+    "class_id",
+    "fund_grant_id",
+    "service_line_id",
+  ] as const;
+
+  for (const field of fields) {
+    const value = cleanId(line[field]);
+
+    if (value) {
+      trackingData[field] = value;
+    }
+  }
+
+  return Object.keys(trackingData).length > 0 ? trackingData : null;
 }
 
 function getMissingColumnName(errorMessage: string) {
@@ -125,15 +162,10 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     const organisationId = String(body.organisation_id || "").trim();
-    const customerId = body.customer_id ? String(body.customer_id).trim() : null;
+    const customerId = cleanId(body.customer_id);
 
-    const accountingPeriodId = body.accounting_period_id
-      ? String(body.accounting_period_id).trim()
-      : null;
-
-    const engagementId = body.engagement_id
-      ? String(body.engagement_id).trim()
-      : null;
+    const accountingPeriodId = cleanId(body.accounting_period_id);
+    const engagementId = cleanId(body.engagement_id);
 
     const invoiceNumber = await reserveDocumentNumber({
       supabase,
@@ -143,41 +175,23 @@ export async function POST(request: Request) {
     });
 
     const invoiceDate = String(body.invoice_date || "").trim();
-    const dueDate = body.due_date ? String(body.due_date).trim() : null;
+    const dueDate = cleanId(body.due_date);
 
     const currencyCode = body.currency_code
       ? String(body.currency_code).trim().toUpperCase()
       : null;
 
     const exchangeRate = toNumber(body.exchange_rate, 1);
-
-    const exchangeRateDate = body.exchange_rate_date
-      ? String(body.exchange_rate_date).trim()
-      : null;
-
-    const exchangeRateSource = body.exchange_rate_source
-      ? String(body.exchange_rate_source).trim()
-      : null;
-
+    const exchangeRateDate = cleanId(body.exchange_rate_date);
+    const exchangeRateSource = cleanId(body.exchange_rate_source);
     const exchangeRateIsLocked = Boolean(body.exchange_rate_is_locked);
 
-    const revenueAccountId = body.revenue_account_id
-      ? String(body.revenue_account_id).trim()
-      : null;
+    const revenueAccountId = cleanId(body.revenue_account_id);
+    const receivableAccountId = cleanId(body.receivable_account_id);
+    const taxAccountId = cleanId(body.tax_account_id);
 
-    const receivableAccountId = body.receivable_account_id
-      ? String(body.receivable_account_id).trim()
-      : null;
-
-    const taxAccountId = body.tax_account_id
-      ? String(body.tax_account_id).trim()
-      : null;
-
-    const notes = body.notes ? String(body.notes).trim() : null;
-
-    const internalNotes = body.internal_notes
-      ? String(body.internal_notes).trim()
-      : null;
+    const notes = cleanId(body.notes);
+    const internalNotes = cleanId(body.internal_notes);
 
     const lines: InvoiceLineInput[] = Array.isArray(body.lines)
       ? body.lines
@@ -312,14 +326,16 @@ export async function POST(request: Request) {
 
     const invoice = invoiceResult.data as unknown as { id: string };
 
+    const removedLineColumns = new Set<string>();
+
     for (const line of calculatedLines) {
-      await insertWithSchemaRetry({
+      const lineResult = await insertWithSchemaRetry({
         supabase,
         table: "sales_invoice_lines",
         payload: {
           sales_invoice_id: invoice.id,
           organisation_id: organisationId,
-          product_service_id: line.product_service_id || null,
+          product_service_id: cleanId(line.product_service_id),
           description: line.description,
           quantity: line.calculated.quantity,
           unit_price: line.calculated.unitPrice,
@@ -327,11 +343,23 @@ export async function POST(request: Request) {
           tax_rate: line.calculated.taxRate,
           tax_amount: line.calculated.taxAmount,
           line_total: line.calculated.lineTotal,
-          revenue_account_id: line.revenue_account_id || revenueAccountId,
-          tax_account_id: line.tax_account_id || taxAccountId,
+          revenue_account_id: cleanId(line.revenue_account_id) || revenueAccountId,
+          tax_account_id: cleanId(line.tax_account_id) || taxAccountId,
+          department_id: cleanId(line.department_id),
+          location_id: cleanId(line.location_id),
+          project_id: cleanId(line.project_id),
+          cost_centre_id: cleanId(line.cost_centre_id),
+          class_id: cleanId(line.class_id),
+          fund_grant_id: cleanId(line.fund_grant_id),
+          service_line_id: cleanId(line.service_line_id),
+          tracking_data: line.tracking_data || buildTrackingData(line),
         },
         selectColumns: "id",
       });
+
+      for (const removedColumn of lineResult.removedColumns) {
+        removedLineColumns.add(removedColumn);
+      }
     }
 
     try {
@@ -352,7 +380,9 @@ export async function POST(request: Request) {
           exchange_rate_source: exchangeRateSource,
           exchange_rate_is_locked: exchangeRateIsLocked,
           status: "DRAFT",
+          line_dimensions_captured: true,
           removed_invoice_columns: invoiceResult.removedColumns,
+          removed_line_columns: Array.from(removedLineColumns),
         },
       });
     } catch {
