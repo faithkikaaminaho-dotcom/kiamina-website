@@ -462,7 +462,9 @@ export default function EditSalesInvoiceForm({
         throw new Error(result.error || "Unable to update sales invoice.");
       }
 
-      router.push(`/portal/organisations/${organisationId}/sales-invoices/${invoice.id}`);
+      router.push(
+        `/portal/organisations/${organisationId}/sales-invoices/${invoice.id}`
+      );
       router.refresh();
     } catch (error) {
       setErrorMessage(
@@ -496,10 +498,12 @@ export default function EditSalesInvoiceForm({
         </h2>
 
         <p className="mt-2 text-sm leading-7 text-slate-600">
-          Supporting documents will be linked using{" "}
-          <span className="font-semibold text-slate-950">source_module = SALES_INVOICE</span>{" "}
-          and this invoice ID. Upload and attach actions will be added in the next
-          step.
+          Supporting documents are linked using{" "}
+          <span className="font-semibold text-slate-950">
+            source_module = SALES_INVOICE
+          </span>{" "}
+          and this invoice ID. Upload and attach actions will be added in the
+          next step.
         </p>
 
         <div className="mt-5 space-y-3">
@@ -669,7 +673,8 @@ export default function EditSalesInvoiceForm({
               Invoice lines
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Edit services, products, GL accounts, and sales reporting dimensions.
+              Edit services, products, GL accounts, and sales reporting
+              dimensions.
             </p>
           </div>
 

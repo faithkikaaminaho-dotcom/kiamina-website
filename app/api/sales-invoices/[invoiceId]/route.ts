@@ -145,6 +145,51 @@ async function insertWithSchemaRetry({
   throw new Error(`Unable to insert into ${table} after schema retry.`);
 }
 
+async function updateWithSchemaRetry({
+  supabase,
+  table,
+  id,
+  organisationId,
+  payload,
+  selectColumns = "id",
+}: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  table: string;
+  id: string;
+  organisationId: string;
+  payload: Record<string, unknown>;
+  selectColumns?: string;
+}) {
+  let safePayload = { ...payload };
+  const removedColumns: string[] = [];
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const { data, error } = await supabase
+      .from(table)
+      .update(safePayload)
+      .eq("id", id)
+      .eq("organisation_id", organisationId)
+      .select(selectColumns)
+      .single();
+
+    if (!error && data) {
+      return { data, removedColumns };
+    }
+
+    const missingColumn = getMissingColumnName(error?.message || "");
+
+    if (missingColumn && missingColumn in safePayload) {
+      delete safePayload[missingColumn];
+      removedColumns.push(missingColumn);
+      continue;
+    }
+
+    throw new Error(error?.message || `Unable to update ${table}.`);
+  }
+
+  throw new Error(`Unable to update ${table} after schema retry.`);
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ invoiceId: string }> }
@@ -176,16 +221,7 @@ export async function PATCH(
 
     const organisationId = String(body.organisation_id || "").trim();
     const customerId = cleanId(body.customer_id);
-
-    const invoiceNumber = body.invoice_number
-      ? await reserveDocumentNumber({
-          supabase,
-          organisationId,
-          documentType: "SALES_INVOICE",
-          providedNumber: body.invoice_number,
-        })
-      : null;
-
+    const providedInvoiceNumber = cleanText(body.invoice_number);
     const invoiceDate = String(body.invoice_date || "").trim();
     const dueDate = cleanId(body.due_date);
 
@@ -223,7 +259,7 @@ export async function PATCH(
       );
     }
 
-    if (!invoiceNumber) {
+    if (!providedInvoiceNumber) {
       return Response.json(
         { error: "Invoice number is required." },
         { status: 400 }
@@ -246,7 +282,7 @@ export async function PATCH(
 
     const { data: invoice, error: invoiceError } = await supabase
       .from("sales_invoices")
-      .select("id, organisation_id, status, posted_at, invoice_number")
+      .select("id, organisation_id, status, posted_at, invoice_number, amount_paid")
       .eq("id", invoiceId)
       .eq("organisation_id", organisationId)
       .single();
@@ -269,6 +305,16 @@ export async function PATCH(
         { status: 409 }
       );
     }
+
+    const invoiceNumber =
+      providedInvoiceNumber === invoice.invoice_number
+        ? invoice.invoice_number
+        : await reserveDocumentNumber({
+            supabase,
+            organisationId,
+            documentType: "SALES_INVOICE",
+            providedNumber: providedInvoiceNumber,
+          });
 
     const { data: organisation, error: organisationError } = await supabase
       .from("organisations")
@@ -328,9 +374,15 @@ export async function PATCH(
     discountAmount = Number(discountAmount.toFixed(2));
     totalAmount = Number(totalAmount.toFixed(2));
 
-    const { error: updateError } = await supabase
-      .from("sales_invoices")
-      .update({
+    const amountPaid = toNumber(invoice.amount_paid, 0);
+    const balanceDue = Number(Math.max(totalAmount - amountPaid, 0).toFixed(2));
+
+    const updateResult = await updateWithSchemaRetry({
+      supabase,
+      table: "sales_invoices",
+      id: invoiceId,
+      organisationId,
+      payload: {
         customer_id: customerId,
         invoice_number: invoiceNumber,
         invoice_date: invoiceDate,
@@ -344,7 +396,7 @@ export async function PATCH(
         tax_amount: taxAmount,
         discount_amount: discountAmount,
         total_amount: totalAmount,
-        balance_due: totalAmount,
+        balance_due: balanceDue,
         revenue_account_id: revenueAccountId,
         receivable_account_id: receivableAccountId,
         tax_account_id: taxAccountId,
@@ -352,16 +404,9 @@ export async function PATCH(
         internal_notes: internalNotes,
         updated_by: user.id,
         updated_at: new Date().toISOString(),
-      })
-      .eq("id", invoiceId)
-      .eq("organisation_id", organisationId);
-
-    if (updateError) {
-      return Response.json(
-        { error: updateError.message || "Unable to update sales invoice." },
-        { status: 400 }
-      );
-    }
+      },
+      selectColumns: "id",
+    });
 
     const { error: deleteLinesError } = await supabase
       .from("sales_invoice_lines")
@@ -427,7 +472,12 @@ export async function PATCH(
           invoice_number: invoiceNumber,
           customer_id: customerId,
           customer_name: customer.customer_name,
+          subtotal_amount: subtotalAmount,
+          tax_amount: taxAmount,
+          discount_amount: discountAmount,
           total_amount: totalAmount,
+          amount_paid: amountPaid,
+          balance_due: balanceDue,
           currency_code: currencyCode || organisation.base_currency_code,
           exchange_rate: exchangeRate,
           exchange_rate_date: exchangeRateDate,
@@ -435,6 +485,7 @@ export async function PATCH(
           exchange_rate_is_locked: exchangeRateIsLocked,
           status: invoiceStatus,
           line_dimensions_captured: true,
+          removed_invoice_columns: updateResult.removedColumns,
           removed_line_columns: Array.from(removedLineColumns),
         },
       });
@@ -447,6 +498,7 @@ export async function PATCH(
       salesInvoiceId: invoiceId,
       status: invoiceStatus,
       totalAmount,
+      balanceDue,
     });
   } catch (error) {
     return Response.json(

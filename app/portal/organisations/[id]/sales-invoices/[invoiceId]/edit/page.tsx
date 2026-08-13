@@ -185,8 +185,8 @@ export default async function EditSalesInvoicePage({
 
               <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
                 Update the draft sales invoice for {organisationName}. Header,
-                line items, GL accounts, dimensions, FX details, and notes can
-                be corrected before review and posting.
+                line items, GL accounts, dimensions, FX details, notes, and
+                linked supporting documents can be reviewed before posting.
               </p>
             </div>
           </div>
