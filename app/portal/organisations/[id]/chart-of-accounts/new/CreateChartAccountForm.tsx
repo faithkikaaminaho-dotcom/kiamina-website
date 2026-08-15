@@ -1,9 +1,23 @@
 "use client";
 
+
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type AccountType = "ASSET" | "LIABILITY" | "INCOME" | "EXPENSE" | "EQUITY";
+
+export type FsLineItemOption = {
+  id: string;
+  framework_code: string;
+  statement_code: string;
+  line_item_code: string;
+  line_item_name: string;
+  account_type: string | null;
+  account_subtype: string | null;
+  presentation_category: string | null;
+  normal_balance: string | null;
+  cash_flow_default_category: string | null;
+};
 
 const accountTypes = [
   { value: "ASSET", label: "Asset" },
@@ -43,101 +57,6 @@ const subtypesByType: Record<AccountType, { value: string; label: string }[]> = 
   EQUITY: [{ value: "EQUITY", label: "Equity" }],
 };
 
-const fsLineItemsBySubtype: Record<string, string[]> = {
-  CURRENT_ASSET: [
-    "Cash and Cash Equivalents",
-    "Bank Balances",
-    "Trade Receivables",
-    "Other Receivables",
-    "Contract Assets",
-    "Prepayments",
-    "Short-term Investments",
-    "Other Current Assets",
-  ],
-  NON_CURRENT_ASSET: [
-    "Property, Plant and Equipment",
-    "Right-of-use Assets",
-    "Intangible Assets",
-    "Investment Property",
-    "Long-term Investments",
-    "Deferred Tax Assets",
-    "Other Non-current Assets",
-  ],
-  CURRENT_LIABILITY: [
-    "Trade Payables",
-    "Other Payables",
-    "Contract Liabilities",
-    "Accrued Expenses",
-    "Tax Payables",
-    "Short-term Borrowings",
-    "Current Lease Liabilities",
-    "Other Current Liabilities",
-  ],
-  NON_CURRENT_LIABILITY: [
-    "Long-term Borrowings",
-    "Non-current Lease Liabilities",
-    "Deferred Tax Liabilities",
-    "Long-term Provisions",
-    "Other Non-current Liabilities",
-  ],
-  OPERATING_INCOME: [
-    "Revenue from Contracts with Customers",
-    "Service Revenue",
-    "Management Fee Income",
-    "Consulting Income",
-    "Other Operating Income",
-  ],
-  COST_OF_SALES: [
-    "Direct Service Costs",
-    "Project Direct Costs",
-    "Subcontractor Costs",
-    "Cost of Sales",
-  ],
-  OTHER_OPERATING_EXPENSE: [
-    "Payroll Costs",
-    "Professional Fees",
-    "Administrative Expenses",
-    "Rent and Utilities",
-    "Technology Costs",
-    "Marketing Expenses",
-    "Compliance Costs",
-    "Other Operating Expenses",
-  ],
-  INVESTING_INCOME: [
-    "Investment Income",
-    "Gain on Disposal of Assets",
-    "Fair Value Gain on Investments",
-  ],
-  INVESTING_EXPENSE: [
-    "Investment Expense",
-    "Loss on Disposal of Assets",
-    "Fair Value Loss on Investments",
-  ],
-  FINANCING_INCOME: ["Finance Income", "Interest Income"],
-  FINANCING_EXPENSE: ["Finance Costs", "Interest Expense", "Bank Charges"],
-  INCOME_TAX: ["Income Tax Expense", "Deferred Tax Expense"],
-  OTHER_COMPREHENSIVE_INCOME: [
-    "Other Comprehensive Income",
-    "Fair Value Reserve Movement",
-    "Foreign Currency Translation Reserve",
-  ],
-  DISCONTINUED_OPERATIONS: [
-  "Profit or Loss from Discontinued Operations",
-  "Revenue from Discontinued Operations",
-  "Expenses from Discontinued Operations",
-  "Gain on Disposal of Discontinued Operations",
-  "Loss on Disposal of Discontinued Operations",
-  "Tax on Discontinued Operations",
-],
-  EQUITY: [
-    "Share Capital",
-    "Retained Earnings",
-    "Capital Contribution",
-    "Share Premium",
-    "Revaluation Reserve",
-    "Other Reserves",
-  ],
-};
 
 const managementCategorySuggestions = [
   "Revenue",
@@ -260,6 +179,66 @@ function cashFlowCategoryForSubtype(accountSubtype: string) {
   return "";
 }
 
+function fsSectionForMasterItem(item?: FsLineItemOption) {
+  if (!item) return "";
+
+  if (item.framework_code === "US_GAAP") {
+    if (item.statement_code === "SFP") return "Balance Sheet";
+    if (item.statement_code === "PL") return "Income Statement";
+    if (item.statement_code === "OCI") {
+      return "Statement of Comprehensive Income";
+    }
+    if (item.statement_code === "SOCE") {
+      return "Statement of Stockholders' Equity";
+    }
+    if (item.statement_code === "SCF") return "Statement of Cash Flows";
+  }
+
+  if (item.statement_code === "SFP") {
+    return "Statement of Financial Position";
+  }
+
+  if (item.statement_code === "OCI") {
+    return "Statement of Profit or Loss and Other Comprehensive Income - Other Comprehensive Income";
+  }
+
+  if (item.statement_code === "PL") {
+    if (item.presentation_category === "INVESTING") {
+      return "Statement of Profit or Loss and Other Comprehensive Income - Investing Activities";
+    }
+
+    if (item.presentation_category === "FINANCING") {
+      return "Statement of Profit or Loss and Other Comprehensive Income - Financing Activities";
+    }
+
+    if (item.presentation_category === "INCOME_TAX") {
+      return "Statement of Profit or Loss and Other Comprehensive Income - Income Tax";
+    }
+
+    if (item.presentation_category === "DISCONTINUED_OPERATIONS") {
+      return "Statement of Profit or Loss and Other Comprehensive Income - Discontinued Operations";
+    }
+
+    return "Statement of Profit or Loss and Other Comprehensive Income - Operating Activities";
+  }
+
+  return "";
+}
+
+function cashFlowCategoryForMasterItem(item?: FsLineItemOption) {
+  const labels: Record<string, string> = {
+    OPERATING: "Operating Activities",
+    INVESTING: "Investing Activities",
+    FINANCING: "Financing Activities",
+    NON_CASH: "Non-cash / Other",
+    CONTEXT_DEPENDENT: "Context Dependent",
+  };
+
+  if (!item?.cash_flow_default_category) return "";
+
+  return labels[item.cash_flow_default_category] || item.cash_flow_default_category;
+}
+
 function RequiredLabel({ children }: { children: React.ReactNode }) {
   return (
     <span className="text-sm font-semibold text-slate-700">
@@ -270,8 +249,14 @@ function RequiredLabel({ children }: { children: React.ReactNode }) {
 
 export default function CreateChartAccountForm({
   organisationId,
+  frameworkCode,
+  countryCode,
+  lineItems,
 }: {
   organisationId: string;
+  frameworkCode: string;
+  countryCode: string | null;
+  lineItems: FsLineItemOption[];
 }) {
   const router = useRouter();
 
@@ -279,7 +264,7 @@ export default function CreateChartAccountForm({
   const [accountName, setAccountName] = useState("");
   const [accountType, setAccountType] = useState("");
   const [accountSubtype, setAccountSubtype] = useState("");
-  const [fsLineItem, setFsLineItem] = useState("");
+  const [fsLineItemId, setFsLineItemId] = useState("");
   const [managementReportCategory, setManagementReportCategory] = useState("");
   const [description, setDescription] = useState("");
   const [taxRelevant, setTaxRelevant] = useState(false);
@@ -295,36 +280,53 @@ export default function CreateChartAccountForm({
     return subtypesByType[accountType as AccountType] || [];
   }, [accountType]);
 
+  const selectedFsLineItem = useMemo(
+    () => lineItems.find((item) => item.id === fsLineItemId),
+    [fsLineItemId, lineItems]
+  );
+
   const normalBalance = useMemo(
-    () => normalBalanceForType(accountType),
-    [accountType]
+    () =>
+      selectedFsLineItem?.normal_balance ||
+      normalBalanceForType(accountType),
+    [accountType, selectedFsLineItem]
   );
 
   const fsSection = useMemo(
-    () => fsSectionForSubtype(accountSubtype),
-    [accountSubtype]
+    () =>
+      selectedFsLineItem
+        ? fsSectionForMasterItem(selectedFsLineItem)
+        : fsSectionForSubtype(accountSubtype),
+    [accountSubtype, selectedFsLineItem]
   );
 
   const cashFlowCategory = useMemo(
-    () => cashFlowCategoryForSubtype(accountSubtype),
-    [accountSubtype]
+    () =>
+      selectedFsLineItem
+        ? cashFlowCategoryForMasterItem(selectedFsLineItem)
+        : cashFlowCategoryForSubtype(accountSubtype),
+    [accountSubtype, selectedFsLineItem]
   );
 
   const fsLineItems = useMemo(() => {
     if (!accountSubtype) return [];
 
-    return fsLineItemsBySubtype[accountSubtype] || [];
-  }, [accountSubtype]);
+    return lineItems.filter(
+      (item) =>
+        item.account_type === accountType &&
+        item.account_subtype === accountSubtype
+    );
+  }, [accountSubtype, accountType, lineItems]);
 
   function handleAccountTypeChange(value: string) {
     setAccountType(value);
     setAccountSubtype("");
-    setFsLineItem("");
+    setFsLineItemId("");
   }
 
   function handleSubtypeChange(value: string) {
     setAccountSubtype(value);
-    setFsLineItem("");
+    setFsLineItemId("");
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -347,7 +349,7 @@ export default function CreateChartAccountForm({
           account_subtype: accountSubtype,
           normal_balance: normalBalance,
           fs_section: fsSection,
-          fs_line_item: fsLineItem,
+          fs_line_item_id: fsLineItemId,
           management_report_category: managementReportCategory,
           cash_flow_category: cashFlowCategory,
           description: description || null,
@@ -456,7 +458,7 @@ export default function CreateChartAccountForm({
             className="mt-2 w-full rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] px-4 py-3 text-sm outline-none"
           />
           <p className="mt-2 text-xs text-slate-500">
-            Automatically selected from account type.
+            Automatically selected from the FS line-item master.
           </p>
         </label>
 
@@ -469,15 +471,15 @@ export default function CreateChartAccountForm({
             className="mt-2 w-full rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] px-4 py-3 text-sm outline-none"
           />
           <p className="mt-2 text-xs text-slate-500">
-            Automatically selected from account subtype.
+            Automatically selected from the FS line-item master.
           </p>
         </label>
 
         <label className="block">
           <RequiredLabel>Financial statement line item</RequiredLabel>
           <select
-            value={fsLineItem}
-            onChange={(event) => setFsLineItem(event.target.value)}
+            value={fsLineItemId}
+            onChange={(event) => setFsLineItemId(event.target.value)}
             required
             disabled={!accountSubtype}
             className="mt-2 w-full rounded-2xl border border-[#D9E3F4] px-4 py-3 text-sm outline-none focus:border-[#073D7F] disabled:bg-slate-100"
@@ -488,11 +490,15 @@ export default function CreateChartAccountForm({
                 : "Select account subtype first"}
             </option>
             {fsLineItems.map((item) => (
-              <option key={item} value={item}>
-                {item}
+              <option key={item.id} value={item.id}>
+                {item.line_item_name}
               </option>
             ))}
           </select>
+          <p className="mt-2 text-xs text-slate-500">
+            Loaded from the {frameworkCode} FS line-item master
+            {countryCode ? ` for ${countryCode}` : ""}.
+          </p>
         </label>
 
         <label className="block">
@@ -504,7 +510,7 @@ export default function CreateChartAccountForm({
             className="mt-2 w-full rounded-2xl border border-[#D9E3F4] bg-[#F8FAFC] px-4 py-3 text-sm outline-none"
           />
           <p className="mt-2 text-xs text-slate-500">
-            Automatically selected from account subtype.
+            Automatically selected from the FS line-item master.
           </p>
         </label>
 
