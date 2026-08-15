@@ -561,31 +561,47 @@ export default async function ProductLocationsPage({
                       />
                     ) : null}
 
-                    <label className="flex items-start gap-4">
-                      <input
-                        type="checkbox"
-                        name="location_ids"
-                        value={location.id}
-                        defaultChecked={assignment?.is_active === true}
-                        disabled={!canManage || !inventoryEnabled}
-                        className="mt-1 h-5 w-5 rounded border-slate-300"
-                      />
+                    <div>
+                      <label className="flex items-start gap-4">
+                        <input
+                          type="checkbox"
+                          name="location_ids"
+                          value={location.id}
+                          defaultChecked={assignment?.is_active === true}
+                          disabled={!canManage || !inventoryEnabled}
+                          className="mt-1 h-5 w-5 rounded border-slate-300"
+                        />
 
-                      <span>
-                        <span className="block font-semibold text-slate-950">
-                          {location.option_name}
-                        </span>
-                        <span className="mt-1 block text-sm text-slate-500">
-                          {location.option_code || "No location code"}
-                          {!canManage ? " · View only" : ""}
-                        </span>
-                        {location.description ? (
-                          <span className="mt-2 block text-sm text-slate-500">
-                            {location.description}
+                        <span>
+                          <span className="block font-semibold text-slate-950">
+                            {location.option_name}
                           </span>
-                        ) : null}
-                      </span>
-                    </label>
+                          <span className="mt-1 block text-sm text-slate-500">
+                            {location.option_code || "No location code"}
+                            {!canManage ? " · View only" : ""}
+                          </span>
+                          {location.description ? (
+                            <span className="mt-2 block text-sm text-slate-500">
+                              {location.description}
+                            </span>
+                          ) : null}
+                        </span>
+                      </label>
+
+                      {assignment?.is_active === true ? (
+                        <Link
+                          href={`/portal/organisations/${organisationId}/products-services/${productId}/locations/${location.id}/opening-balance`}
+                          className="ml-9 mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[#073D7F] hover:underline"
+                        >
+                          <Boxes className="h-4 w-4" />
+                          Opening balance
+                        </Link>
+                      ) : (
+                        <p className="ml-9 mt-3 text-xs text-slate-500">
+                          Save this location first to create an opening balance.
+                        </p>
+                      )}
+                    </div>
 
                     <label className="block">
                       <span className="text-sm font-semibold text-slate-700">
