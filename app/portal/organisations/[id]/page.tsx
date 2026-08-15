@@ -7,6 +7,7 @@ import {
   Banknote,
   BarChart3,
   BookOpenCheck,
+  Boxes,
   Building2,
   CalendarDays,
   ClipboardCheck,
@@ -241,6 +242,10 @@ export default async function OrganisationDetailPage({
           label: "Tracking Dimensions",
           href: `/portal/organisations/${organisation.id}/tracking`,
         },
+        {
+          label: "Inventory Settings",
+          href: `/portal/organisations/${organisation.id}/inventory-settings`,
+        },
       ],
     },
     {
@@ -250,11 +255,11 @@ export default async function OrganisationDetailPage({
       items: [
         {
           label: "Customers",
-          href: `/portal/organisations/${organisation.id}/customers/new`,
+          href: `/portal/organisations/${organisation.id}/customers`,
         },
         {
           label: "Products / Services",
-          href: `/portal/organisations/${organisation.id}/products-services/new`,
+          href: `/portal/organisations/${organisation.id}/products-services`,
         },
         {
           label: "Sales Invoices",
@@ -285,7 +290,7 @@ export default async function OrganisationDetailPage({
         },
         {
           label: "Products / Services",
-          href: `/portal/organisations/${organisation.id}/products-services/new`,
+          href: `/portal/organisations/${organisation.id}/products-services`,
         },
         {
           label: "Purchase Bills",
@@ -917,6 +922,20 @@ export default async function OrganisationDetailPage({
               <div className="mt-2 text-sm leading-6 text-slate-600">
                 Departments, locations, projects, cost centres, classes, funds,
                 and service lines.
+              </div>
+            </a>
+
+            <a
+              href={`/portal/organisations/${organisation.id}/inventory-settings`}
+              className="rounded-[1.5rem] border border-[#D9E3F4] bg-[#F8FAFC] p-5 transition hover:border-[#073D7F] hover:bg-white"
+            >
+              <Boxes className="h-6 w-6 text-[#073D7F]" />
+              <div className="mt-5 font-semibold text-slate-950">
+                Inventory Settings
+              </div>
+              <div className="mt-2 text-sm leading-6 text-slate-600">
+                Configure inventory tracking and the organisation’s valuation
+                method.
               </div>
             </a>
           </div>
