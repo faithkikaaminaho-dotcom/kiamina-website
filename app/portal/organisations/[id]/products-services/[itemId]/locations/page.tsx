@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   ArrowLeft,
+  ArrowRightLeft,
   Boxes,
   MapPinned,
   ShieldCheck,
@@ -589,13 +590,25 @@ export default async function ProductLocationsPage({
                       </label>
 
                       {assignment?.is_active === true ? (
-                        <Link
-                          href={`/portal/organisations/${organisationId}/products-services/${productId}/locations/${location.id}/opening-balance`}
-                          className="ml-9 mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[#073D7F] hover:underline"
-                        >
-                          <Boxes className="h-4 w-4" />
-                          Opening balance
-                        </Link>
+                        <div className="ml-9 mt-4 flex flex-wrap items-center gap-x-5 gap-y-3">
+                          <Link
+                            href={`/portal/organisations/${organisationId}/products-services/${productId}/locations/${location.id}`}
+                            className="inline-flex items-center gap-2 text-sm font-semibold text-[#073D7F] hover:underline"
+                          >
+                            <ArrowRightLeft className="h-4 w-4" />
+                            View movements
+                          </Link>
+
+                          {canManage ? (
+                            <Link
+                              href={`/portal/organisations/${organisationId}/products-services/${productId}/locations/${location.id}/opening-balance`}
+                              className="inline-flex items-center gap-2 text-sm font-semibold text-[#073D7F] hover:underline"
+                            >
+                              <Boxes className="h-4 w-4" />
+                              Opening balance
+                            </Link>
+                          ) : null}
+                        </div>
                       ) : (
                         <p className="ml-9 mt-3 text-xs text-slate-500">
                           Save this location first to create an opening balance.
