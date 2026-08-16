@@ -118,6 +118,22 @@ export default async function InventoryCountDetailPage({
 
   if (!organisation) redirect("/portal/organisations");
 
+  const { data: inventorySettings } = await supabase
+    .from("organisation_inventory_settings")
+    .select("inventory_valuation_method")
+    .eq("organisation_id", id)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  const valuationMethod =
+    inventorySettings?.inventory_valuation_method || "FIFO";
+  const valuationMethodLabel =
+    valuationMethod === "WEIGHTED_AVERAGE"
+      ? "Weighted Average"
+      : valuationMethod === "SPECIFIC_IDENTIFICATION"
+        ? "Specific Identification"
+        : "FIFO";
+
   const { data: inventoryCount, error: countError } = await supabase
     .from("inventory_counts")
     .select(
@@ -280,7 +296,7 @@ export default async function InventoryCountDetailPage({
 
     if (!actionUser) redirect("/signin");
 
-    const { error } = await serverSupabase.rpc("post_fifo_inventory_count", {
+    const { error } = await serverSupabase.rpc("post_inventory_count", {
       requested_inventory_count_id: countId,
     });
 
@@ -367,8 +383,8 @@ export default async function InventoryCountDetailPage({
 
         {posted === "1" ? (
           <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-700">
-            Inventory count adjustment posted successfully to FIFO inventory
-            and the General Ledger.
+            Inventory count adjustment posted successfully using
+            {" "}{valuationMethodLabel} and recorded in the General Ledger.
           </div>
         ) : null}
 
@@ -406,8 +422,9 @@ export default async function InventoryCountDetailPage({
                   Ready for controlled posting
                 </h2>
                 <p className="mt-2 text-sm leading-7 text-emerald-800">
-                  Posting creates the FIFO count adjustment and a balanced
-                  General Ledger entry. This action cannot be edited afterward.
+                  Posting applies the {valuationMethodLabel} count adjustment
+                  and creates a balanced General Ledger entry. This action
+                  cannot be edited afterward.
                 </p>
                 <form action={postCount} className="mt-4">
                   <button
@@ -591,8 +608,8 @@ export default async function InventoryCountDetailPage({
           {inventoryCount.status === "POSTED" ? (
             <>
               Total quantity variance: {formatNumber(totalVarianceQuantity)}.
-              The FIFO inventory adjustment and balanced General Ledger entry
-              have been posted.
+              The {valuationMethodLabel} inventory adjustment and balanced
+              General Ledger entry have been posted.
             </>
           ) : (
             <>

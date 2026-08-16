@@ -111,6 +111,22 @@ export default async function OpeningInventoryPage({
     redirect("/portal/organisations");
   }
 
+  const { data: inventorySettings } = await supabase
+    .from("organisation_inventory_settings")
+    .select("inventory_valuation_method")
+    .eq("organisation_id", organisationId)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  const valuationMethod =
+    inventorySettings?.inventory_valuation_method || "FIFO";
+  const valuationMethodLabel =
+    valuationMethod === "WEIGHTED_AVERAGE"
+      ? "Weighted Average"
+      : valuationMethod === "SPECIFIC_IDENTIFICATION"
+        ? "Specific Identification"
+        : "FIFO";
+
   const { data: product, error: productError } = await supabase
     .from("products_services")
     .select(
@@ -479,7 +495,7 @@ export default async function OpeningInventoryPage({
 
         {posted === "1" ? (
           <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-700">
-            Opening balance posted successfully and the FIFO cost layer was created.
+            Opening balance posted successfully using {valuationMethodLabel}.
           </div>
         ) : null}
 
@@ -630,12 +646,13 @@ export default async function OpeningInventoryPage({
             <div className="mt-8 border-t border-[#D9E3F4] pt-8">
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
                 <h3 className="font-semibold text-amber-900">
-                  Post opening balance
+                  Post opening balance · {valuationMethodLabel}
                 </h3>
                 <p className="mt-2 text-sm leading-7 text-amber-800">
-                  Posting creates the first FIFO cost layer and changes the
-                  location quantity and inventory value. The opening balance
-                  cannot be edited after posting.
+                  {valuationMethod === "WEIGHTED_AVERAGE"
+                    ? "Posting initialises the location quantity, inventory value, and Weighted Average cost position."
+                    : "Posting creates the first FIFO cost layer and changes the location quantity and inventory value."}{" "}
+                  The opening balance cannot be edited after posting.
                 </p>
                 <form action={postOpeningBalance} className="mt-4">
                   <button

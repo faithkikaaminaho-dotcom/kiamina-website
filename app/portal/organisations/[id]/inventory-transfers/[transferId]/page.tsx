@@ -122,6 +122,22 @@ export default async function InventoryTransferDetailPage({
 
   if (!organisation) redirect("/portal/organisations");
 
+  const { data: inventorySettings } = await supabase
+    .from("organisation_inventory_settings")
+    .select("inventory_valuation_method")
+    .eq("organisation_id", id)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  const valuationMethod =
+    inventorySettings?.inventory_valuation_method || "FIFO";
+  const valuationMethodLabel =
+    valuationMethod === "WEIGHTED_AVERAGE"
+      ? "Weighted Average"
+      : valuationMethod === "SPECIFIC_IDENTIFICATION"
+        ? "Specific Identification"
+        : "FIFO";
+
   const { data: transfer, error: transferError } = await supabase
     .from("inventory_transfers")
     .select(
@@ -226,7 +242,7 @@ export default async function InventoryTransferDetailPage({
     if (!actionUser) redirect("/signin");
 
     const { error } = await serverSupabase.rpc(
-      "post_fifo_inventory_transfer",
+      "post_inventory_transfer",
       { requested_transfer_id: transferId }
     );
 
@@ -298,8 +314,8 @@ export default async function InventoryTransferDetailPage({
 
         {posted === "1" ? (
           <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-700">
-            Inventory transfer posted successfully. The linked source and
-            destination FIFO movements were created.
+            Inventory transfer posted successfully using {valuationMethodLabel}.
+            The linked source and destination movements were created.
           </div>
         ) : null}
 
@@ -344,8 +360,9 @@ export default async function InventoryTransferDetailPage({
                   Ready for controlled posting
                 </h2>
                 <p className="mt-2 text-sm leading-7 text-emerald-800">
-                  Posting consumes the oldest source FIFO layers and creates
-                  equal linked movements and cost layers at the destination.
+                  {valuationMethod === "WEIGHTED_AVERAGE"
+                    ? "Posting issues inventory at the locked source average cost and recalculates the destination average cost."
+                    : "Posting consumes the oldest source FIFO layers and creates equal linked movements and cost layers at the destination."}
                 </p>
                 <form action={postTransfer} className="mt-4">
                   <button
