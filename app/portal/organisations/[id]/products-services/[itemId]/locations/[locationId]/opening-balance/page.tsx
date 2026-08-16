@@ -71,14 +71,14 @@ export default async function OpeningInventoryPage({
     itemId: string;
     locationId: string;
   }>;
-  searchParams: Promise<{ saved?: string }>;
+  searchParams: Promise<{ saved?: string; posted?: string }>;
 }) {
   const {
     id: organisationId,
     itemId: productId,
     locationId,
   } = await params;
-  const { saved } = await searchParams;
+  const { saved, posted } = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -356,6 +356,78 @@ export default async function OpeningInventoryPage({
     redirect(`${pagePath}?saved=1`);
   }
 
+  async function postOpeningBalance() {
+    "use server";
+
+    const serverSupabase = await createClient();
+    const {
+      data: { user: actionUser },
+    } = await serverSupabase.auth.getUser();
+
+    if (!actionUser) {
+      redirect("/signin");
+    }
+
+    const { data: actionProfile } = await serverSupabase
+      .from("profiles")
+      .select("role")
+      .eq("id", actionUser.id)
+      .single();
+
+    if (
+      !actionProfile ||
+      !globalInventoryManagerRoles.includes(String(actionProfile.role))
+    ) {
+      throw new Error(
+        "Only an authorised inventory manager can post an opening balance."
+      );
+    }
+
+    const { data: movementToPost } = await serverSupabase
+      .from("inventory_movements")
+      .select("id, status")
+      .eq("organisation_id", organisationId)
+      .eq("product_service_id", productId)
+      .eq("location_id", locationId)
+      .eq("movement_type", "OPENING_BALANCE")
+      .neq("status", "VOID")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!movementToPost) {
+      throw new Error("Save the draft opening balance before posting it.");
+    }
+
+    if (movementToPost.status === "POSTED") {
+      redirect(
+        `/portal/organisations/${organisationId}/products-services/${productId}/locations/${locationId}/opening-balance?posted=1`
+      );
+    }
+
+    const { error: postingError } = await serverSupabase.rpc(
+      "post_inventory_opening_balance",
+      { requested_movement_id: movementToPost.id }
+    );
+
+    if (postingError) {
+      throw new Error(postingError.message);
+    }
+
+    const openingBalancePath =
+      `/portal/organisations/${organisationId}` +
+      `/products-services/${productId}/locations/${locationId}/opening-balance`;
+
+    revalidatePath(openingBalancePath);
+    revalidatePath(
+      `/portal/organisations/${organisationId}/products-services/${productId}/locations/${locationId}`
+    );
+    revalidatePath(
+      `/portal/organisations/${organisationId}/products-services/${productId}/locations`
+    );
+    redirect(`${openingBalancePath}?posted=1`);
+  }
+
   const organisationName =
     organisation.trading_name ||
     organisation.legal_name ||
@@ -402,6 +474,12 @@ export default async function OpeningInventoryPage({
         {saved === "1" ? (
           <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-700">
             Draft opening balance saved successfully.
+          </div>
+        ) : null}
+
+        {posted === "1" ? (
+          <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-700">
+            Opening balance posted successfully and the FIFO cost layer was created.
           </div>
         ) : null}
 
@@ -546,6 +624,30 @@ export default async function OpeningInventoryPage({
               </div>
             </form>
           )}
+
+          {existingMovementStatus === "DRAFT" &&
+          isGlobalInventoryManager ? (
+            <div className="mt-8 border-t border-[#D9E3F4] pt-8">
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                <h3 className="font-semibold text-amber-900">
+                  Post opening balance
+                </h3>
+                <p className="mt-2 text-sm leading-7 text-amber-800">
+                  Posting creates the first FIFO cost layer and changes the
+                  location quantity and inventory value. The opening balance
+                  cannot be edited after posting.
+                </p>
+                <form action={postOpeningBalance} className="mt-4">
+                  <button
+                    type="submit"
+                    className="rounded-full bg-emerald-700 px-6 py-3 text-sm font-semibold text-white"
+                  >
+                    Post Opening Balance
+                  </button>
+                </form>
+              </div>
+            </div>
+          ) : null}
         </section>
       </section>
     </main>
